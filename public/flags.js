@@ -154,7 +154,15 @@ function rgb2hsv([r, g, b]) { r /= 255; g /= 255; b /= 255; const mx = Math.max(
   return [h, mx ? d / mx : 0, mx]; }
 const toHex = rgb => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
 const fromHex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const LAB_CACHE = new Map();
 function lab(hex) {
+  const k = hex.toUpperCase();
+  if (LAB_CACHE.has(k)) return LAB_CACHE.get(k);
+  const v = labRaw(k);
+  if (LAB_CACHE.size < 5000) LAB_CACHE.set(k, v);
+  return v;
+}
+function labRaw(hex) {
   const [r, g, b] = fromHex(hex).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
   const X = (r * .4124 + g * .3576 + b * .1805) / .95047, Y = r * .2126 + g * .7152 + b * .0722, Z = (r * .0193 + g * .1192 + b * .9505) / 1.08883;
   const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
@@ -201,17 +209,116 @@ function wrongColor(flag, t, rnd) {
   return [0, 0, .5];
 }
 
-/** Tire ROUNDS manches à partir d'une graine : [{id, t, start:[h,s,v]}] */
-function generate(seed, n = ROUNDS) {
-  const rnd = rng(seed), pool = FLAGS.map((_, i) => i), out = [];
+/* ---------- Difficulté ---------- */
+// Notoriété pour un public francophone : 1 = très connu, 2 = assez connu, 3 = rare
+const TIER1 = "fr it de be ie nl lu ch at pl ua ru se no dk fi is gr gb-eng gb-sct jp cn in tr ma dz tn sn ci cm cu jm vn co cl".split(" ");
+const TIER3 = "gm bw sl ye gw tt gy pw fm sc mu dj ne bh ax fo td la mv".split(" ");
+const tierOf = id => (TIER1.includes(id) ? 1 : TIER3.includes(id) ? 3 : 2);
+
+const isPlain = hex => { const [, s, v] = rgb2hsv(fromHex(hex)); return (s < .08 && v > .93) || v < .08; }; // blanc ou noir
+
+let PAIRS = null;
+/** Toutes les manches possibles (drapeau + couleur), triées de la plus facile à la plus difficile. */
+function pairs() {
+  if (PAIRS) return PAIRS;
+  const all = FLAGS.flatMap(f => f.c);
+  const list = [];
+  for (const f of FLAGS) f.c.forEach((hex, t) => {
+    if ((f.minor || []).includes(t)) return;
+    const [, s, v] = rgb2hsv(fromHex(hex));
+    let cd;
+    if (isPlain(hex)) cd = 0;
+    else {
+      // Une nuance « classique » (présente sur beaucoup de drapeaux) se devine mieux
+      const near = all.filter(c => dE(c, hex) < 8).length - 1;
+      const typ = Math.min(1, near / 14);
+      const dark = Math.max(0, .75 - v) / .75, pale = s < .5 && v > .8 ? .4 : 0;
+      cd = Math.min(1, .45 * (1 - typ) + .3 * (1 - s) + .3 * dark + .3 * pale);
+    }
+    list.push({ id: f.id, t, cd, fam: (tierOf(f.id) - 1) / 2, plain: isPlain(hex) });
+  });
+  // Rang de la difficulté de nuance (ex æquo = rang moyen), blanc et noir à 0
+  const byCd = [...list].sort((x, y) => x.cd - y.cd || (x.id < y.id ? -1 : x.id > y.id ? 1 : x.t - y.t));
+  for (let i = 0; i < byCd.length;) {
+    let j = i; while (j + 1 < byCd.length && Math.abs(byCd[j + 1].cd - byCd[i].cd) < 1e-9) j++;
+    const r = (i + j) / 2 / (byCd.length - 1);
+    for (let k = i; k <= j; k++) byCd[k].cr = byCd[k].cd <= .02 ? 0 : r;
+    i = j + 1;
+  }
+  // La notoriété du pays ne compte que si la nuance est ambiguë
+  for (const p of list) p.D = .6 * p.cr + .4 * p.fam * Math.min(1, p.cr / .35);
+  list.sort((x, y) => x.D - y.D || (x.id < y.id ? -1 : x.id > y.id ? 1 : x.t - y.t));
+  list.forEach((p, i) => { p.pct = i / (list.length - 1); p.lvl = Math.min(5, 1 + Math.floor(p.pct * 5)); });
+  PAIRS = list;
+  return list;
+}
+const LEVELS = {
+  facile: { range: [0, .45], plain: 2 },
+  moyen: { range: [.3, .75], plain: 1 },
+  difficile: { range: [.65, 1], plain: 0 },
+};
+const levelOf = (id, t) => { const p = pairs().find(x => x.id === id && x.t === t); return p ? p.lvl : 3; };
+
+/**
+ * Tire n manches à partir d'une graine : [{id, t, start:[h,s,v], lvl}]
+ *  level absent      : tirage d'origine (tous drapeaux, ordre aléatoire)
+ *  "facile" | "moyen" | "difficile" : drapeaux et nuances du niveau choisi
+ *  "daily"           : difficulté croissante, du plus simple au plus corsé (sans aller jusqu'aux extrêmes)
+ */
+function generate(seed, n = ROUNDS, opts = {}) {
+  const level = opts.level;
+  const rnd = rng(seed), out = [];
+  if (!level) {
+    const pool = FLAGS.map((_, i) => i);
+    for (let k = 0; k < n; k++) {
+      const j = k + Math.floor(rnd() * (pool.length - k)); [pool[k], pool[j]] = [pool[j], pool[k]];
+      const flag = FLAGS[pool[k]];
+      const cand = flag.c.map((_, i) => i).filter(i => !(flag.minor || []).includes(i));
+      const t = cand[Math.floor(rnd() * cand.length)];
+      out.push({ id: flag.id, t, start: wrongColor(flag, t, rnd), lvl: levelOf(flag.id, t) });
+    }
+    return out;
+  }
+  const P = pairs(), used = new Set();
+  let plainLeft = level === "daily" ? 1 : (LEVELS[level] || LEVELS.moyen).plain;
+  const ok = p => !used.has(p.id) && (!p.plain || plainLeft > 0);
   for (let k = 0; k < n; k++) {
-    const j = k + Math.floor(rnd() * (pool.length - k)); [pool[k], pool[j]] = [pool[j], pool[k]];
-    const flag = FLAGS[pool[k]];
-    const cand = flag.c.map((_, i) => i).filter(i => !(flag.minor || []).includes(i));
-    const t = cand[Math.floor(rnd() * cand.length)];
-    out.push({ id: flag.id, t, start: wrongColor(flag, t, rnd) });
+    let lo, hi;
+    if (level === "daily") {
+      const target = .04 + k * (.84 - .04) / Math.max(1, n - 1);
+      lo = target - .06; hi = target + .06;
+    } else [lo, hi] = (LEVELS[level] || LEVELS.moyen).range;
+    let cand = [];
+    for (let widen = 0; widen < 8 && !cand.length; widen++, lo -= .05, hi += .05) cand = P.filter(p => p.pct >= lo && p.pct <= hi && ok(p));
+    if (!cand.length) cand = P.filter(ok);
+    const p = cand[Math.floor(rnd() * cand.length)];
+    used.add(p.id); if (p.plain) plainLeft--;
+    out.push({ id: p.id, t: p.t, start: wrongColor(BY_ID[p.id], p.t, rnd), lvl: p.lvl });
   }
   return out;
+}
+
+/** Indice de nuance (mode facile) : « un bleu foncé », « un rouge vif »… */
+function colorHint(hex) {
+  const [h, s, v] = rgb2hsv(fromHex(hex));
+  if (v < .12) return "un noir";
+  if (s < .12) return v > .9 ? "un blanc" : v > .55 ? "un gris clair" : "un gris foncé";
+  let name;
+  if (h < 12 || h >= 340) name = v < .55 ? "un bordeaux" : s < .55 ? "un rose" : "un rouge";
+  else if (h < 40) name = v < .6 ? "un brun" : "un orange";
+  else if (h < 66) name = v < .6 ? "un olive" : "un jaune";
+  else if (h < 165) name = "un vert";
+  else if (h < 195) name = "un turquoise";
+  else if (h < 255) name = "un bleu";
+  else if (h < 290) name = "un violet";
+  else name = "un rose";
+  let mod = "";
+  if (name === "un bordeaux" || name === "un brun" || name === "un olive") mod = "";
+  else if (v < .62) mod = " foncé";
+  else if (s < .5 && v > .75) mod = " clair";
+  else if (s < .55) mod = " un peu terne";
+  else if (s > .85 && v > .8) mod = " vif";
+  return name + mod;
 }
 
 /** Points d'une manche selon l'écart ΔE2000 (100 = parfait) */
@@ -223,5 +330,5 @@ function flagSVG(flag, f, w, h) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${flag.W} ${flag.H}" width="${w}" height="${h}" preserveAspectRatio="none">${flag.d(g)}</svg>`;
 }
 
-return { FLAGS, BY_ID, ROUNDS, generate, points, dE, lab, hsv2rgb, rgb2hsv, toHex, fromHex, isHex, flagSVG, rng };
+return { FLAGS, BY_ID, ROUNDS, LEVELS, generate, pairs, colorHint, points, dE, lab, hsv2rgb, rgb2hsv, toHex, fromHex, isHex, flagSVG, rng };
 });

@@ -36,7 +36,7 @@
         <div>
           <h2>Défi du jour</h2>
           <p class="mode-sub" id="dailyDate"></p>
-          <p class="mode-desc">Les mêmes 10 drapeaux pour tout le monde, une seule tentative. Nouveau défi chaque jour à minuit.</p>
+          <p class="mode-desc">Les mêmes 10 drapeaux pour tout le monde, du plus simple au plus corsé. Une seule tentative, nouveau défi chaque jour à minuit.</p>
         </div>
         <div class="mode-foot">
           <p class="streak" id="streak"></p>
@@ -46,8 +46,13 @@
       <article class="mode">
         <div>
           <h2>Partie libre</h2>
-          <p class="mode-sub">95 drapeaux possibles</p>
-          <p class="mode-desc">10 drapeaux tirés au hasard. Rejoue autant que tu veux, seul ton meilleur score compte.</p>
+          <p class="mode-sub">10 drapeaux, un classement par niveau</p>
+          <div class="seg level-pick" id="levelPick" role="radiogroup" aria-label="Niveau de la partie libre">
+            <button role="radio" data-level="facile">Facile</button>
+            <button role="radio" data-level="moyen">Moyen</button>
+            <button role="radio" data-level="difficile">Difficile</button>
+          </div>
+          <p class="mode-desc" id="levelDesc"></p>
         </div>
         <div class="mode-foot">
           <p class="streak" id="bestFree"></p>
@@ -106,6 +111,7 @@
       </div>
 
       <div class="panel" id="guessPanel">
+        <p class="hint-line" id="hintLine" hidden></p>
         <div class="sliders">
           <label for="sH">Teinte</label>
           <div class="track hue" id="sH" tabindex="0" role="slider" aria-label="Teinte" aria-valuemin="0" aria-valuemax="100"><div class="thumb"></div></div>
@@ -189,7 +195,12 @@
   </header>
   <div class="tabs" role="tablist">
     <button role="tab" class="tab" id="tabDaily" aria-selected="true">Défi du jour</button>
-    <button role="tab" class="tab" id="tabFree" aria-selected="false">Records en partie libre</button>
+    <button role="tab" class="tab" id="tabFree" aria-selected="false">Partie libre</button>
+  </div>
+  <div class="seg board-level" id="boardLevel" role="radiogroup" aria-label="Niveau" hidden>
+    <button role="radio" data-level="facile">Facile</button>
+    <button role="radio" data-level="moyen">Moyen</button>
+    <button role="radio" data-level="difficile">Difficile</button>
   </div>
   <p class="board-meta" id="boardMeta"></p>
   <ol class="board" id="fullBoard"></ol>
@@ -218,10 +229,18 @@
     <div class="seat" id="seatOpp"></div>
   </section>
   <section class="lobby-foot">
-    <div class="rounds" id="roundsPick" role="radiogroup" aria-label="Nombre de manches">
-      <button role="radio" data-n="5">5 manches</button>
-      <button role="radio" data-n="10">10 manches</button>
+    <div class="lobby-settings">
+      <div class="seg" id="roundsPick" role="radiogroup" aria-label="Nombre de manches">
+        <button role="radio" data-n="5">5 manches</button>
+        <button role="radio" data-n="10">10 manches</button>
+      </div>
+      <div class="seg" id="duelLevel" role="radiogroup" aria-label="Niveau du duel">
+        <button role="radio" data-level="facile">Facile</button>
+        <button role="radio" data-level="moyen">Moyen</button>
+        <button role="radio" data-level="difficile">Difficile</button>
+      </div>
     </div>
+    <p class="level-note" id="duelLevelNote"></p>
     <button class="btn primary big" id="readyBtn">Je suis prêt</button>
     <p class="lobby-status" id="lobbyStatus" aria-live="polite"></p>
   </section>

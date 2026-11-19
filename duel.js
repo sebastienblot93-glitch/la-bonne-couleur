@@ -7,7 +7,7 @@
  *   POST /api/duel/join     {pid, name, code}      → {code, key}
  *   GET  /api/duel/stream?code&pid&key             → flux SSE « state »
  *   POST /api/duel/action   {code, pid, key, type, ...}
- *        type = ready | unready | config {rounds} | guess {hex, round} | leave
+ *        type = ready | unready | config {rounds?, level?} | guess {hex, round} | leave
  *
  * Étapes d'une salle : lobby → countdown → play ⇄ reveal → end (→ countdown pour une revanche)
  */
@@ -72,7 +72,7 @@ module.exports = function createDuels({ Flags, json, fail, readBody, limited, cl
       winner = a !== b ? (a > b ? "me" : "opp") : (timeOf(room, pid) === timeOf(room, opp.pid) ? "tie" : (timeOf(room, pid) < timeOf(room, opp.pid) ? "me" : "opp"));
     }
     return {
-      code: room.code, phase: room.phase, n: room.rounds, idx: room.idx, game: room.game,
+      code: room.code, phase: room.phase, n: room.rounds, level: room.level, idx: room.idx, game: room.game,
       host: room.host === pid, deadline: room.deadline, now: Date.now(),
       round: live ? room.list[room.idx] : null,
       myGuess: live && me ? me.guesses[room.idx] || null : null,
@@ -98,7 +98,7 @@ module.exports = function createDuels({ Flags, json, fail, readBody, limited, cl
     if ((room.phase === "lobby" || room.phase === "end") && ps.length === 2 && ps.every(p => p.ready)) {
       room.game++;
       room.seed = crypto.randomBytes(9).toString("base64url");
-      room.list = Flags.generate(room.seed, room.rounds);
+      room.list = Flags.generate(room.seed, room.rounds, { level: room.level });
       room.results = []; room.idx = 0; room.forfeit = null;
       for (const p of room.players.values()) { p.guesses = []; p.ready = false; }
       room.phase = "countdown"; room.deadline = Date.now() + T.countdown;
@@ -174,7 +174,7 @@ module.exports = function createDuels({ Flags, json, fail, readBody, limited, cl
     if (rooms.size >= MAX_ROOMS) return fail(res, 503, "Trop de salles ouvertes en ce moment, réessaie plus tard.");
     const code = newCode(); if (!code) return fail(res, 503, "Impossible de créer une salle, réessaie.");
     const p = makePlayer(b.pid, name);
-    const room = { code, host: b.pid, players: new Map([[b.pid, p]]), phase: "lobby", rounds: 5, idx: 0, list: [], results: [],
+    const room = { code, host: b.pid, players: new Map([[b.pid, p]]), phase: "lobby", rounds: 5, level: "moyen", idx: 0, list: [], results: [],
       deadline: 0, timer: 0, game: 0, created: Date.now(), touched: Date.now() };
     rooms.set(code, room);
     json(res, 200, { code, key: p.key });
@@ -225,10 +225,16 @@ module.exports = function createDuels({ Flags, json, fail, readBody, limited, cl
         maybeStart(room);
         return json(res, 200, { ok: true });
       case "config": {
-        if (room.phase !== "lobby" || room.host !== p.pid) return fail(res, 403, "Seul le créateur de la salle choisit le nombre de manches.");
-        const n = +b.rounds;
-        if (![5, 10].includes(n)) return fail(res, 400, "Nombre de manches invalide.");
-        room.rounds = n;
+        if (room.phase !== "lobby" || room.host !== p.pid) return fail(res, 403, "Seul le créateur de la salle choisit les réglages.");
+        if (b.rounds !== undefined) {
+          const n = +b.rounds;
+          if (![5, 10].includes(n)) return fail(res, 400, "Nombre de manches invalide.");
+          room.rounds = n;
+        }
+        if (b.level !== undefined) {
+          if (!["facile", "moyen", "difficile"].includes(b.level)) return fail(res, 400, "Niveau invalide.");
+          room.level = b.level;
+        }
         for (const x of room.players.values()) x.ready = false;
         broadcast(room);
         return json(res, 200, { ok: true });

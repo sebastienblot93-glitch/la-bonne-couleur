@@ -244,11 +244,24 @@ button, input { font: inherit; color: inherit; }
 .seat.ready .st { color: var(--encre); font-weight: 650; }
 .vs { margin: 0; color: var(--graphite); font-weight: 600; }
 .lobby-foot { display: grid; justify-items: center; gap: 16px; margin-top: 30px; }
-.rounds { display: inline-flex; background: var(--papier); border-radius: var(--r-m); padding: 4px; }
-.rounds button { appearance: none; border: 0; background: none; padding: 9px 16px; border-radius: 10px; font-weight: 650; cursor: pointer; color: var(--graphite); }
-.rounds button[aria-checked="true"] { background: var(--encre); color: var(--blanc); }
-.rounds button:disabled { cursor: default; }
-.rounds button:disabled:not([aria-checked="true"]) { opacity: .5; }
+.seg { display: inline-flex; background: var(--papier); border-radius: var(--r-m); padding: 4px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); }
+.seg button { appearance: none; border: 0; background: none; padding: 9px 16px; border-radius: 10px; font-weight: 650; cursor: pointer; color: var(--graphite); }
+.seg button[aria-checked="true"] { background: var(--encre); color: var(--blanc); }
+.seg button:disabled { cursor: default; }
+.seg button:disabled:not([aria-checked="true"]) { opacity: .5; }
+.lobby-settings { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.level-pick { margin-top: 14px; background: var(--blanc); }
+.level-pick button { padding: 8px 13px; }
+.board-level { margin-top: 14px; }
+.level-note { margin: -4px 0 0; color: var(--graphite); font-size: 14px; text-align: center; max-width: 34em; }
+
+/* Difficulté de la manche : 5 pastilles */
+.pips { display: inline-flex; gap: 4px; margin: 2px 0 8px; vertical-align: middle; }
+.pips i { width: 18px; height: 6px; border-radius: 3px; background: rgba(28,28,28,.18); }
+.pips i.on { background: var(--encre); }
+.pips-wrap { display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 13px; color: #3d3d3d; }
+.hint-line { margin: 0 0 14px; padding: 10px 14px; background: var(--blanc); border-radius: var(--r-s); box-shadow: inset 0 0 0 1px rgba(0,0,0,.1); }
+.hint-line b { font-weight: 750; }
 .lobby-status { margin: 0; text-align: center; min-height: 1.5em; max-width: 34em; }
 .lobby-status.count { font-size: 44px; font-weight: 900; font-variation-settings: "wdth" 125; }
 

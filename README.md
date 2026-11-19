@@ -5,11 +5,18 @@ Sur chaque drapeau, une couleur est fausse. Retrouve la bonne avec les curseurs
 
 ## Ce qu'il y a dedans
 
-- **Défi du jour** : les mêmes 10 drapeaux pour tout le monde, une seule tentative, classement quotidien,
+- **Défi du jour** : les mêmes 10 drapeaux pour tout le monde, **du plus simple au plus corsé**
+  (sans aller jusqu'aux nuances les plus extrêmes), une seule tentative, classement quotidien,
   série de jours consécutifs, résultat à partager (grille d'émojis).
-- **Partie libre** : 10 drapeaux au hasard parmi 95, classement des records personnels.
+- **Partie libre en 3 niveaux**, chacun avec son classement :
+  - *Facile* : drapeaux connus, couleurs franches, indice sur la nuance (« un bleu foncé »…) ;
+  - *Moyen* : mélange équilibré, sans indice ;
+  - *Difficile* : drapeaux rares et nuances subtiles, curseurs seulement (pas de code couleur).
+- **Difficulté de chaque manche** (1 à 5) calculée à partir de la notoriété du pays et de la nuance à retrouver
+  (blanc et noir faciles, couleurs « classiques » de drapeaux plus faciles que les nuances rares).
 - **Duel en direct** : une salle à code (lien `/?salle=CODE`), deux joueurs, les mêmes drapeaux,
-  45 s par manche, révélation simultanée des deux couleurs, revanche, victoire par forfait si l'autre quitte.
+  45 s par manche, niveau et nombre de manches choisis par le créateur, révélation simultanée des deux couleurs,
+  revanche, victoire par forfait si l'autre quitte.
 - **Scores vérifiés côté serveur** : chaque partie est signée (HMAC) et le serveur recalcule les points
   à partir des réponses. Un jeton ne peut servir qu'une fois.
 - **Interface « cabine de lumière »** : tout le décor est en gris neutres, seules les couleurs des drapeaux
@@ -54,7 +61,7 @@ public/
   index.html   écrans (accueil, jeu, fin, classement)
   styles.css   design « cabine de lumière »
   app.js       logique de l'interface
-  flags.js     drapeaux, couleurs, ΔE 2000, tirage des parties (partagé avec le serveur)
+  flags.js     drapeaux, couleurs, ΔE 2000, difficultés, tirage des parties (partagé avec le serveur)
 server.js      serveur HTTP + API (/api/game, /api/score, /api/leaderboard, /api/stats)
 duel.js        salles de duel en mémoire, flux temps réel (Server-Sent Events)
 store.js       classement : client Redis minimal (Upstash, TLS), ou mémoire en local

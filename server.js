@@ -1,9 +1,9 @@
 /*
  * La bonne couleur — serveur (Node, sans dépendance).
  * Sert le dossier public/ et une petite API :
- *   GET  /api/game?mode=daily|free      → nouvelle partie (jeton signé + manches)
+ *   GET  /api/game?mode=daily|free[&level=facile|moyen|difficile] → nouvelle partie (jeton signé + manches)
  *   POST /api/score                     → enregistre une partie, recalcule le score côté serveur
- *   GET  /api/leaderboard?board=daily|free[&pid=]
+ *   GET  /api/leaderboard?board=daily|free[&level=…][&pid=]
  *   GET  /api/stats
  *   /api/duel/*                         → duels en temps réel (voir duel.js)
  *   GET  /healthz
@@ -25,6 +25,10 @@ const store = createStore();
 const TOKEN_MAX_AGE = 6 * 3600 * 1000;   // une partie doit être rendue dans les 6 h
 const MIN_DURATION = +process.env.MIN_DURATION_MS || 8000; // moins de 8 s pour 10 manches : refusé
 const TOP_N = 50;
+const LEVELS = ["facile", "moyen", "difficile"];
+const pickLevel = v => (LEVELS.includes(v) ? v : "moyen");
+// Défi du jour à difficulté croissante à partir de cette date (le défi déjà commencé aujourd'hui reste identique pour tous)
+const DAILY_PROGRESSIVE_FROM = process.env.DAILY_PROGRESSIVE_FROM || "2026-11-20";
 
 /* ---------- Utilitaires ---------- */
 const b64 = s => Buffer.from(s).toString("base64url");
@@ -92,8 +96,10 @@ async function apiGame(req, res, url) {
   const mode = url.searchParams.get("mode") === "daily" ? "daily" : "free";
   const date = parisDate();
   const seed = mode === "daily" ? sign("daily:" + date).slice(0, 16) : crypto.randomBytes(9).toString("base64url");
-  const payload = { v: 1, m: mode, d: date, s: seed, iat: Date.now(), n: crypto.randomBytes(6).toString("base64url") };
-  json(res, 200, { token: makeToken(payload), mode, date, rounds: Flags.generate(seed) });
+  const level = mode === "daily" ? (date >= DAILY_PROGRESSIVE_FROM ? "daily" : undefined) : pickLevel(url.searchParams.get("level"));
+  const payload = { v: 1, m: mode, d: date, s: seed, l: level, iat: Date.now(), n: crypto.randomBytes(6).toString("base64url") };
+  json(res, 200, { token: makeToken(payload), mode, date, level: mode === "free" ? level : null, progressive: level === "daily",
+    rounds: Flags.generate(seed, Flags.ROUNDS, { level }) });
 }
 
 async function apiScore(req, res) {
@@ -102,7 +108,7 @@ async function apiScore(req, res) {
   try { body = await readBody(req); } catch { return fail(res, 400, "Requête illisible."); }
   const tok = readToken(body.token);
   if (!tok || tok.payload.v !== 1) return fail(res, 400, "Partie inconnue.");
-  const { m: mode, d: date, s: seed, iat } = tok.payload;
+  const { m: mode, d: date, s: seed, l: level, iat } = tok.payload;
   const elapsed = Date.now() - iat;
   if (elapsed > TOKEN_MAX_AGE) return fail(res, 410, "Cette partie a expiré.");
   if (elapsed < MIN_DURATION) return fail(res, 400, "Partie terminée trop vite pour être enregistrée.");
@@ -113,7 +119,7 @@ async function apiScore(req, res) {
   if (!Array.isArray(guesses) || guesses.length !== Flags.ROUNDS || !guesses.every(Flags.isHex)) return fail(res, 400, "Réponses incomplètes.");
 
   // Le score est recalculé ici à partir de la graine : le client ne peut pas l'imposer.
-  const rounds = Flags.generate(seed).map((r, i) => {
+  const rounds = Flags.generate(seed, Flags.ROUNDS, { level }).map((r, i) => {
     const truth = Flags.BY_ID[r.id].c[r.t], d = Flags.dE(guesses[i].toUpperCase(), truth);
     return { id: r.id, truth, guess: guesses[i].toUpperCase(), d: +d.toFixed(2), pts: Flags.points(d) };
   });
@@ -121,25 +127,27 @@ async function apiScore(req, res) {
 
   if (!(await store.useToken(tok.sig, 7 * 24 * 3600))) return fail(res, 409, "Cette partie a déjà été enregistrée.");
 
-  const board = mode === "daily" ? "daily:" + date : "free";
+  // Partie libre : un classement par niveau (les parties d'avant les niveaux restent dans « free »)
+  const board = mode === "daily" ? "daily:" + date : level ? "free:" + level : "free";
   const info = { name, total, ms: elapsed, at: Date.now(), p: rounds.map(r => r.pts) };
   const { stored } = await store.record(board, body.pid, composite(total, elapsed), info, mode === "daily" ? "nx" : "gt");
   await store.incr("games");
   const [me, count] = await Promise.all([store.rank(board, body.pid), store.count(board)]);
-  json(res, 200, { total, ms: elapsed, rounds, mode, date, board: mode, stored, already: mode === "daily" && !stored, me: me && { rank: me.rank, ...me.info }, count });
+  json(res, 200, { total, ms: elapsed, rounds, mode, date, level: mode === "free" ? level || null : null, board: mode, stored, already: mode === "daily" && !stored, me: me && { rank: me.rank, ...me.info }, count });
 }
 
 async function apiLeaderboard(req, res, url) {
   if (limited(req, "lb", 120)) return fail(res, 429, "Trop de requêtes, réessaie dans une minute.");
   const kind = url.searchParams.get("board") === "free" ? "free" : "daily";
   const date = parisDate();
-  const board = kind === "daily" ? "daily:" + date : "free";
+  const level = pickLevel(url.searchParams.get("level"));
+  const board = kind === "daily" ? "daily:" + date : "free:" + level;
   const pid = url.searchParams.get("pid");
   const [top, count, me] = await Promise.all([
     store.top(board, TOP_N), store.count(board), validPid(pid) ? store.rank(board, pid) : null,
   ]);
   json(res, 200, {
-    board: kind, date, count,
+    board: kind, level: kind === "free" ? level : null, date, count,
     entries: top.map((e, i) => ({ rank: i + 1, name: e.info?.name || "?", total: e.info?.total ?? 0, ms: e.info?.ms ?? 0, p: e.info?.p || [], me: e.pid === pid })),
     me: me && { rank: me.rank, name: me.info?.name, total: me.info?.total, ms: me.info?.ms, p: me.info?.p || [] },
   });

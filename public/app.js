@@ -37,6 +37,17 @@ async function api(path, opts) {
   return j;
 }
 
+const LEVEL_TXT = {
+  facile: "Drapeaux connus et couleurs franches, avec un indice sur la nuance.",
+  moyen: "Un mélange équilibré de drapeaux, sans indice.",
+  difficile: "Drapeaux rares et nuances subtiles. Curseurs seulement, sans code couleur.",
+};
+const LEVEL_NAME = { facile: "facile", moyen: "moyen", difficile: "difficile" };
+let level = LEVEL_TXT[LS.get("bc.level")] ? LS.get("bc.level") : "moyen";
+function setSeg(el, attr, value, disabled) {
+  for (const b of el.querySelectorAll("button")) { b.setAttribute("aria-checked", String(b.dataset[attr] === String(value))); b.disabled = !!disabled; }
+}
+
 let pid = LS.get("bc.pid");
 if (!pid) { pid = uuid(); LS.set("bc.pid", pid); }
 const getName = () => (LS.get("bc.name", "") || "").trim();
@@ -100,8 +111,10 @@ function refreshHome() {
     $("streak").innerHTML = run && run.date === today ? `Partie en cours : manche ${run.results.length + 1} sur 10.${streakTxt}` : streakTxt.trim();
     $("playDaily").textContent = run && run.date === today ? "Reprendre le défi" : "Jouer le défi";
   }
-  const best = LS.get("bc.bestFree");
-  $("bestFree").innerHTML = best ? `Ton record : <b>${best} points</b>` : "";
+  setSeg($("levelPick"), "level", level);
+  $("levelDesc").textContent = LEVEL_TXT[level] + " Rejoue autant que tu veux, seul ton meilleur score compte.";
+  const best = LS.get("bc.best." + level);
+  $("bestFree").innerHTML = best ? `Ton record en ${LEVEL_NAME[level]} : <b>${best} points</b>` : "";
   $("name").value = getName();
 
   api("/api/stats").then(st => {
@@ -121,6 +134,10 @@ $("playDaily").addEventListener("click", () => {
   start("daily");
 });
 $("playFree").addEventListener("click", () => start("free"));
+$("levelPick").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  level = b.dataset.level; boardLvl = level; LS.set("bc.level", level); refreshHome();
+});
 $("openBoard").addEventListener("click", () => openBoard("daily"));
 
 /* ================================================================== */
@@ -132,18 +149,18 @@ function boardRow(e) {
     <span class="cells" title="Points par manche">${cells}</span><span class="sc">${e.total}</span><span class="tm">${fmtTime(e.ms)}</span></li>`;
 }
 
-async function loadBoard(kind, list, meta, limit) {
+async function loadBoard(kind, list, meta, limit, lvl) {
   list.innerHTML = `<li class="empty">Chargement du classement…</li>`;
   try {
-    const b = await api(`/api/leaderboard?board=${kind}&pid=${encodeURIComponent(pid)}`);
+    const b = await api(`/api/leaderboard?board=${kind}${kind === "free" ? "&level=" + (lvl || level) : ""}&pid=${encodeURIComponent(pid)}`);
     const rows = b.entries.slice(0, limit || 50);
     if (!rows.length) {
-      list.innerHTML = `<li class="empty">${kind === "daily" ? "Personne n'a encore joué le défi aujourd'hui. Lance-toi le premier !" : "Aucune partie libre enregistrée pour l'instant."}</li>`;
+      list.innerHTML = `<li class="empty">${kind === "daily" ? "Personne n'a encore joué le défi aujourd'hui. Lance-toi le premier !" : `Aucune partie libre en niveau ${LEVEL_NAME[b.level]} pour l'instant.`}</li>`;
     } else list.innerHTML = rows.map(boardRow).join("");
     if (meta) {
       meta.textContent = kind === "daily"
         ? `${cap(prettyDate(b.date))}, ${plural(b.count, "joueur", "joueurs")}.`
-        : `${plural(b.count, "joueur", "joueurs")}, meilleur score de chacun.`;
+        : `Niveau ${LEVEL_NAME[b.level]}, ${plural(b.count, "joueur", "joueurs")}, meilleur score de chacun.`;
       const inTop = rows.some(r => r.me);
       $("boardMe").innerHTML = b.me && !inTop
         ? `Ta place : <b>${ord(b.me.rank)}</b> avec ${b.me.total} points.`
@@ -156,15 +173,19 @@ async function loadBoard(kind, list, meta, limit) {
   }
 }
 
-let boardKind = "daily";
-function openBoard(kind) {
-  boardKind = kind; show("boardScreen");
+let boardKind = "daily", boardLvl = level;
+function openBoard(kind, lvl) {
+  boardKind = kind; if (lvl) boardLvl = lvl;
+  if (current !== "boardScreen") show("boardScreen");
   $("tabDaily").setAttribute("aria-selected", kind === "daily");
   $("tabFree").setAttribute("aria-selected", kind === "free");
-  loadBoard(kind, $("fullBoard"), $("boardMeta"));
+  $("boardLevel").hidden = kind !== "free";
+  setSeg($("boardLevel"), "level", boardLvl);
+  loadBoard(kind, $("fullBoard"), $("boardMeta"), 50, boardLvl);
 }
 $("tabDaily").addEventListener("click", () => openBoard("daily"));
 $("tabFree").addEventListener("click", () => openBoard("free"));
+$("boardLevel").addEventListener("click", e => { const b = e.target.closest("button"); if (b) openBoard("free", b.dataset.level); });
 $("boardBack").addEventListener("click", () => { if (previous === "end") show("end"); else { show("home"); refreshHome(); } });
 
 /* ================================================================== */
@@ -183,16 +204,17 @@ async function start(mode) {
       Object.assign(G, { mode, date: run.date, token: run.token, rounds: run.rounds, results: run.results, t0: run.t0, offline: !!run.offline });
     } else {
       let data;
-      try { data = await api(`/api/game?mode=${mode}`); G.offline = false; }
+      try { data = await api(`/api/game?mode=${mode}${mode === "free" ? "&level=" + level : ""}`); G.offline = false; }
       catch {
         G.offline = true;
-        data = { token: null, date: today, rounds: F.generate(mode === "daily" ? "hors-ligne:" + today : "hors-ligne:" + Math.random()) };
+        data = { token: null, date: today, rounds: F.generate(mode === "daily" ? "hors-ligne:" + today : "hors-ligne:" + Math.random(), F.ROUNDS, { level: mode === "daily" ? "daily" : level }) };
       }
       Object.assign(G, { mode, date: data.date, token: data.token, rounds: data.rounds, results: [], t0: Date.now() });
       saveRun();
     }
   } finally { btns.forEach(b => (b.disabled = false)); }
-  $("hudMode").textContent = mode === "daily" ? "Défi du jour" : "Partie libre";
+  G.level = mode === "free" ? level : null;
+  $("hudMode").textContent = mode === "daily" ? "Défi du jour" : `Partie libre, ${LEVEL_NAME[level]}`;
   setDuelUI(false);
   show("game");
   buildStrip();
@@ -218,13 +240,23 @@ function paintChip(i, r) {
   li.innerHTML = (r.guess ? `<i style="background:${r.guess}"></i>` : `<i class="none"></i>`) + `<i style="background:${r.truth}"></i>`;
 }
 
+function currentLevel() {
+  if (G.mode === "duel") return D && D.s ? D.s.level : null;
+  return G.mode === "free" ? G.level : null;
+}
+
 function startRound() {
   const i = G.results.length, r = G.rounds[i], flag = flagOf(i);
   G.phase = "guess"; G.showMine = false; G.t = r.t;
   [G.h, G.s, G.v] = r.start;
   [...$("strip").children].forEach((li, k) => { if (k === i) li.classList.add("cur"); });
-  $("prompt").innerHTML = `<b>${esc(flag.n)}</b>Une couleur est fausse sur ce drapeau. Retrouve la bonne.`;
+  const lvl = r.lvl || 3, lv = currentLevel();
+  const pips = `<span class="pips-wrap" title="Difficulté de la manche : ${lvl} sur 5"><span>Difficulté</span><span class="pips" aria-label="Difficulté ${lvl} sur 5">${[1, 2, 3, 4, 5].map(k => `<i class="${k <= lvl ? "on" : ""}"></i>`).join("")}</span></span>`;
+  $("prompt").innerHTML = `<b>${esc(flag.n)}</b>${pips}Une couleur est fausse sur ce drapeau. Retrouve la bonne.`;
   $("flagHint").textContent = "La zone entourée de pointillés a la mauvaise couleur.";
+  $("hintLine").hidden = lv !== "facile";
+  if (lv === "facile") $("hintLine").innerHTML = `Indice : la bonne couleur est <b>${esc(F.colorHint(flag.c[r.t]))}</b>.`;
+  $("hex").hidden = lv === "difficile";
   $("guessPanel").hidden = false; $("revealPanel").hidden = true; $("waitPanel").hidden = true;
   $("flag").classList.remove("clickable");
   renderFlag(); update();
@@ -406,7 +438,7 @@ function finish() {
   const total = G.results.reduce((a, r) => a + r.pts, 0), ms = Date.now() - G.t0;
   G.saved = null;
   show("end");
-  $("endMode").textContent = G.mode === "daily" ? `Défi du ${prettyDate(G.date)}` : "Partie libre";
+  $("endMode").textContent = G.mode === "daily" ? `Défi du ${prettyDate(G.date)}` : `Partie libre, ${LEVEL_NAME[G.level]}`;
   $("endTotal").textContent = total;
   $("recap").innerHTML = G.results.map(r => {
     const f = F.BY_ID[r.id], [w, h] = fitSize(f, 44, 28);
@@ -420,7 +452,7 @@ function finish() {
     LS.set("bc.daily." + G.date, { total, p: G.results.map(r => r.pts), ms });
     const days = new Set(LS.get("bc.days", [])); days.add(G.date); LS.set("bc.days", [...days].slice(-120));
     LS.del("bc.run.daily");
-  } else if (total > (LS.get("bc.bestFree") || 0)) LS.set("bc.bestFree", total);
+  } else if (total > (LS.get("bc.best." + G.level) || 0)) LS.set("bc.best." + G.level, total);
 
   G.final = { total, ms };
   $("again").textContent = G.mode === "daily" ? "Lancer une partie libre" : "Rejouer";
@@ -446,7 +478,7 @@ async function sendScore(name) {
     let txt;
     if (r.mode === "daily" && r.already) txt = `Tu avais déjà joué le défi aujourd'hui : ton premier score (${me.total}) reste au classement, à la <b>${ordF(me.rank)}</b> place.`;
     else if (r.mode === "daily") txt = `Tu es <b>${ord(me.rank)}</b> sur ${people} aujourd'hui, en ${fmtTime(r.ms)}.`;
-    else if (r.stored) txt = `Nouveau record personnel ! Tu es <b>${ord(me.rank)}</b> sur ${people} en partie libre.`;
+    else if (r.stored) txt = `Nouveau record personnel ! Tu es <b>${ord(me.rank)}</b> sur ${people} en partie libre, niveau ${LEVEL_NAME[G.level]}.`;
     else txt = `Ton record reste ${me.total} points, à la <b>${ordF(me.rank)}</b> place sur ${people}.`;
     $("endRank").innerHTML = txt;
     if (r.mode === "daily") { const d = LS.get("bc.daily." + G.date) || {}; LS.set("bc.daily." + G.date, { ...d, rank: me.rank }); }
@@ -467,7 +499,7 @@ $("saveForm").addEventListener("submit", e => {
 function shareText() {
   const sq = p => (p >= 90 ? "🟩" : p >= 70 ? "🟨" : p >= 40 ? "🟧" : "🟥");
   const total = G.saved ? G.saved.total : G.final.total;
-  const head = G.mode === "daily" ? `La bonne couleur, défi du ${prettyDate(G.date)}` : "La bonne couleur, partie libre";
+  const head = G.mode === "daily" ? `La bonne couleur, défi du ${prettyDate(G.date)}` : `La bonne couleur, partie libre (${LEVEL_NAME[G.level]})`;
   const rank = G.saved && G.saved.mode === "daily" && !G.saved.already ? ` (${ordTxt(G.saved.me.rank)} du jour)` : "";
   return `${head}\n${total}/1000 en ${fmtTime(G.saved ? G.saved.ms : G.final.ms)}${rank}\n${G.results.map(r => sq(r.pts)).join("")}\n${location.origin}`;
 }
@@ -480,7 +512,7 @@ $("share").addEventListener("click", async () => {
     ta.remove(); $("toast").textContent = ok ? "Résultat copié. Colle-le où tu veux." : text;
   }
 });
-$("endBoard").addEventListener("click", () => openBoard(G.mode === "daily" ? "daily" : "free"));
+$("endBoard").addEventListener("click", () => (G.mode === "daily" ? openBoard("daily") : openBoard("free", G.level)));
 $("again").addEventListener("click", () => start("free"));
 $("endHome").addEventListener("click", () => { show("home"); refreshHome(); });
 
@@ -597,6 +629,9 @@ function renderLobby(s) {
     b.setAttribute("aria-checked", +b.dataset.n === s.n); b.disabled = !s.host || s.phase !== "lobby";
   }
   $("roundsPick").title = s.host ? "" : "Le créateur de la salle choisit le nombre de manches.";
+  setSeg($("duelLevel"), "level", s.level, !s.host || s.phase !== "lobby");
+  $("duelLevel").title = s.host ? LEVEL_TXT[s.level] : "Le créateur de la salle choisit le niveau.";
+  $("duelLevelNote").textContent = (LEVEL_TXT[s.level] || "") + (s.host ? "" : " Le créateur de la salle choisit les réglages.");
   const counting = s.phase === "countdown";
   $("readyBtn").hidden = counting;
   $("readyBtn").textContent = s.me.ready ? "Je ne suis plus prêt" : "Je suis prêt";
@@ -720,7 +755,7 @@ function renderDuelEnd(s) {
   $("drOpp").textContent = oName;
   $("deSub").textContent = s.forfeit ? `${s.forfeit} a quitté la salle avant la fin.`
     : s.tiebreak ? "Égalité de points : départagés par le temps de réponse."
-    : `${plural(s.n, "manche", "manches")} sur les mêmes drapeaux.`;
+    : `${plural(s.n, "manche", "manches")} en niveau ${LEVEL_NAME[s.level] || "moyen"}, sur les mêmes drapeaux.`;
   document.querySelector(".duel-recap-wrap").hidden = !s.results.length;
   if (D.endKey !== key) {
     D.endKey = key;
@@ -755,6 +790,10 @@ $("joinCode").addEventListener("input", e => { e.target.value = e.target.value.t
 $("readyBtn").addEventListener("click", async () => {
   if (!D || !D.s) return;
   try { await duelAction(D.s.me.ready ? "unready" : "ready"); } catch (e) { $("lobbyStatus").textContent = e.message; }
+});
+$("duelLevel").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.disabled || !D) return;
+  try { await duelAction("config", { level: b.dataset.level }); } catch (err) { $("lobbyStatus").textContent = err.message; }
 });
 $("roundsPick").addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b || b.disabled || !D) return;
