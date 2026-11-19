@@ -1,0 +1,14 @@
+services:
+  - type: web
+    runtime: static
+    name: la-bonne-couleur
+    # Site 100 % statique : rien à compiler
+    buildCommand: echo "Site statique, aucun build necessaire"
+    staticPublishPath: ./public
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=300
