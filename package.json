@@ -1,0 +1,13 @@
+{
+  "name": "la-bonne-couleur",
+  "version": "1.0.0",
+  "description": "Jeu : retrouve la bonne couleur d'un drapeau",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
