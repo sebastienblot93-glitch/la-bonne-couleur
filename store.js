@@ -50,7 +50,9 @@ function parse(buf, i) {
 class Redis {
   constructor(url) {
     const u = new URL(url);
-    this.host = u.hostname; this.port = +u.port || 6379; this.tls = u.protocol === "rediss:";
+    this.host = u.hostname; this.port = +u.port || 6379;
+    // Chiffrement si l'adresse est en rediss://, si REDIS_TLS=1, ou pour Upstash (qui l'exige toujours)
+    this.tls = u.protocol === "rediss:" || process.env.REDIS_TLS === "1" || /\.upstash\.io$/i.test(this.host);
     this.user = decodeURIComponent(u.username || ""); this.pass = decodeURIComponent(u.password || "");
     this.db = +(u.pathname || "/0").slice(1) || 0;
     this.sock = null; this.queue = []; this.buf = Buffer.alloc(0); this.backoff = 250;
