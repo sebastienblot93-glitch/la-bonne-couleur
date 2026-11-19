@@ -55,7 +55,7 @@ let current = "home", previous = "home";
 function show(id) {
   if (id !== current) previous = current;
   current = id;
-  for (const s of ["home", "game", "end", "boardScreen"]) $(s).hidden = s !== id;
+  for (const s of ["home", "game", "end", "boardScreen", "lobby", "duelEnd"]) $(s).hidden = s !== id;
   if (id !== "game") stopAnts();
   window.scrollTo(0, 0);
 }
@@ -108,6 +108,7 @@ function refreshHome() {
     const parts = [];
     if (st.today) parts.push(`${plural(st.today, "personne a", "personnes ont")} joué le défi aujourd'hui`);
     if (st.games) parts.push(`${plural(st.games, "partie jouée", "parties jouées")} en tout`);
+    if (st.duels) parts.push(plural(st.duels, "duel disputé", "duels disputés"));
     $("stats").textContent = parts.length ? cap(parts.join(", ")) + "." : "";
   }).catch(() => { $("stats").textContent = ""; });
 
@@ -192,6 +193,7 @@ async function start(mode) {
     }
   } finally { btns.forEach(b => (b.disabled = false)); }
   $("hudMode").textContent = mode === "daily" ? "Défi du jour" : "Partie libre";
+  setDuelUI(false);
   show("game");
   buildStrip();
   clearInterval(G.timer); G.timer = setInterval(tick, 500); tick();
@@ -201,10 +203,11 @@ function saveRun() {
   if (G.mode !== "daily") return;
   LS.set("bc.run.daily", { date: G.date, token: G.token, rounds: G.rounds, results: G.results, t0: G.t0, offline: G.offline });
 }
-const tick = () => { $("hudTime").textContent = fmtTime(Date.now() - G.t0); };
+const tick = () => { if (G.mode !== "duel") $("hudTime").textContent = fmtTime(Date.now() - G.t0); };
 
 function buildStrip() {
-  $("strip").innerHTML = G.rounds.map((_, i) => `<li data-n="${i + 1}"></li>`).join("");
+  $("strip").style.setProperty("--n", G.rounds.length);
+  $("strip").innerHTML = Array.from({ length: G.rounds.length }, (_, i) => `<li data-n="${i + 1}"></li>`).join("");
   G.results.forEach((r, i) => paintChip(i, r));
   $("runTotal").textContent = G.results.reduce((a, r) => a + r.pts, 0);
 }
@@ -212,7 +215,7 @@ function paintChip(i, r) {
   const li = $("strip").children[i];
   li.className = "done"; li.dataset.pts = r.pts;
   li.title = `${F.BY_ID[r.id].n} : ${r.pts} points`;
-  li.innerHTML = `<i style="background:${r.guess}"></i><i style="background:${r.truth}"></i>`;
+  li.innerHTML = (r.guess ? `<i style="background:${r.guess}"></i>` : `<i class="none"></i>`) + `<i style="background:${r.truth}"></i>`;
 }
 
 function startRound() {
@@ -222,7 +225,7 @@ function startRound() {
   [...$("strip").children].forEach((li, k) => { if (k === i) li.classList.add("cur"); });
   $("prompt").innerHTML = `<b>${esc(flag.n)}</b>Une couleur est fausse sur ce drapeau. Retrouve la bonne.`;
   $("flagHint").textContent = "La zone entourée de pointillés a la mauvaise couleur.";
-  $("guessPanel").hidden = false; $("revealPanel").hidden = true;
+  $("guessPanel").hidden = false; $("revealPanel").hidden = true; $("waitPanel").hidden = true;
   $("flag").classList.remove("clickable");
   renderFlag(); update();
 }
@@ -237,7 +240,7 @@ function renderFlag() {
   const [w, h] = fitSize(flag, Math.min(small ? 330 : 440, stage.clientWidth - 8), small ? 200 : 270);
   let f;
   if (G.phase === "guess") f = k => `var(--c${k})`;
-  else { const res = G.results[i]; f = G.showMine ? (k => (k === G.t ? res.guess : flag.c[k])) : (k => flag.c[k]); }
+  else { const res = G.results[i]; f = G.showMine && res.guess ? (k => (k === G.t ? res.guess : flag.c[k])) : (k => flag.c[k]); }
   el.innerHTML = F.flagSVG(flag, f, w, h);
   if (G.phase === "guess") {
     const svg = el.querySelector("svg");
@@ -326,6 +329,7 @@ $("hex").addEventListener("blur", () => update());
 /* ---------- Valider / manche suivante ---------- */
 function submit() {
   if (G.phase !== "guess") return;
+  if (G.mode === "duel") return duelSubmit();
   const i = G.results.length, r = G.rounds[i], flag = flagOf(i);
   const guess = cur(), truth = flag.c[r.t], d = F.dE(guess, truth), pts = F.points(d);
   const res = { id: r.id, t: r.t, guess, truth, d, pts };
@@ -359,22 +363,29 @@ function countUp(el, to) {
 }
 
 function next() {
+  if (G.mode === "duel") return;
   if (G.results.length >= G.rounds.length) return finish();
   startRound();
 }
 
 $("submit").addEventListener("click", submit);
 $("next").addEventListener("click", next);
-$("flag").addEventListener("click", () => { if (G.phase === "result") { G.showMine = !G.showMine; renderFlag(); } });
+$("flag").addEventListener("click", () => {
+  if (G.phase !== "result") return;
+  const res = G.results[G.results.length - 1];
+  if (!res || !res.guess) return;
+  G.showMine = !G.showMine; renderFlag();
+});
 
 let quitArmed = 0;
 $("quit").addEventListener("click", () => {
   if (!quitArmed) {
-    $("quit").textContent = G.mode === "daily" ? "Quitter ? Ta progression est gardée" : "Quitter ? La partie sera perdue";
+    $("quit").textContent = G.mode === "daily" ? "Quitter ? Ta progression est gardée" : G.mode === "duel" ? "Quitter ? Tu perdras par forfait" : "Quitter ? La partie sera perdue";
     quitArmed = setTimeout(() => { quitArmed = 0; $("quit").textContent = "Quitter"; }, 3000);
     return;
   }
   clearTimeout(quitArmed); quitArmed = 0; $("quit").textContent = "Quitter";
+  if (G.mode === "duel") return duelLeave();
   clearInterval(G.timer); show("home"); refreshHome();
 });
 
@@ -473,7 +484,313 @@ $("endBoard").addEventListener("click", () => openBoard(G.mode === "daily" ? "da
 $("again").addEventListener("click", () => start("free"));
 $("endHome").addEventListener("click", () => { show("home"); refreshHome(); });
 
+/* ================================================================== */
+/* DUEL                                                               */
+/* ================================================================== */
+let D = null; // { code, key, es, s, offset, roundKey, revealKey, sent }
+
+function setDuelUI(on) {
+  $("duelBar").hidden = !on;
+  $("splitOpp").hidden = !on;
+  $("revealPanel").querySelector(".split").classList.toggle("three", on);
+  $("oppLine").hidden = !on;
+  $("autoNext").hidden = !on;
+  $("next").hidden = on;
+  $("waitPanel").hidden = true;
+  $("hudTime").classList.remove("urgent");
+  for (const id of ["splitYou", "splitOpp", "splitTrue"]) $(id).classList.remove("none");
+}
+
+const duelPost = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const duelAction = (type, extra = {}) => duelPost("/api/duel/action", { code: D.code, pid, key: D.key, type, ...extra });
+const inviteUrl = code => `${location.origin}/?salle=${code}`;
+const left = () => (D && D.s ? D.s.deadline - (Date.now() + D.offset) : 0);
+const oppName = () => (D && D.s && D.s.opp ? D.s.opp.name : "ton adversaire");
+
+function duelError(msg) { $("duelErr").textContent = msg || ""; }
+
+function needName() {
+  const n = ($("name").value || "").trim();
+  if (n.length < 2) {
+    duelError("Choisis d'abord un pseudo, juste au-dessus.");
+    $("name").focus();
+    return null;
+  }
+  LS.set("bc.name", n.slice(0, 18));
+  return n;
+}
+
+async function duelCreate() {
+  const name = needName(); if (!name) return;
+  duelError(""); $("duelCreate").disabled = true;
+  try { const r = await duelPost("/api/duel/create", { pid, name }); enterRoom(r.code, r.key); }
+  catch (e) { duelError(e.message); }
+  finally { $("duelCreate").disabled = false; }
+}
+
+async function duelJoin(code) {
+  const name = needName(); if (!name) return;
+  code = (code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 4) { duelError("Le code d'une salle fait 4 caractères."); $("joinCode").focus(); return; }
+  duelError("");
+  try { const r = await duelPost("/api/duel/join", { pid, name, code }); enterRoom(r.code, r.key); }
+  catch (e) { duelError(e.message); }
+}
+
+function enterRoom(code, key) {
+  if (D && D.es) D.es.close();
+  D = { code, key, es: null, s: null, offset: 0, roundKey: "", revealKey: "", sent: false, endKey: "" };
+  LS.set("bc.duel", { code, key });
+  try { history.replaceState(null, "", `/?salle=${code}`); } catch { /* navigation figée */ }
+  $("roomCode").textContent = code;
+  $("inviteLink").value = inviteUrl(code);
+  $("seatMe").className = "seat"; $("seatMe").innerHTML = `<span class="nm">${esc(getName())}</span><span class="st">Connexion…</span>`;
+  $("seatOpp").className = "seat empty"; $("seatOpp").innerHTML = `<span class="st">En attente d'un adversaire…</span>`;
+  $("lobbyStatus").textContent = ""; $("lobbyStatus").className = "lobby-status";
+  show("lobby");
+  const es = new EventSource(`/api/duel/stream?code=${code}&pid=${encodeURIComponent(pid)}&key=${encodeURIComponent(key)}`);
+  D.es = es;
+  es.addEventListener("state", e => { if (D && D.es === es) duelSync(JSON.parse(e.data)); });
+  es.onerror = () => {
+    if (!D || D.es !== es) return;
+    if (es.readyState === EventSource.CLOSED) exitRoom("Cette salle n'existe plus. Le serveur a peut-être redémarré : crée une nouvelle salle.");
+    else if (current === "lobby") $("lobbyStatus").textContent = "Connexion perdue, reconnexion…";
+  };
+  clearInterval(G.timer); G.timer = setInterval(duelTick, 200);
+}
+
+function exitRoom(msg) {
+  if (D && D.es) D.es.close();
+  D = null; LS.del("bc.duel");
+  clearInterval(G.timer); G.mode = "free"; setDuelUI(false);
+  try { history.replaceState(null, "", "/"); } catch { /* idem */ }
+  show("home"); refreshHome(); duelError(msg || "");
+}
+
+async function duelLeave() {
+  if (D) { try { await duelAction("leave"); } catch { /* la salle a peut-être disparu */ } }
+  exitRoom("");
+}
+
+/* ---------- Réception de l'état ---------- */
+function duelSync(s) {
+  D.s = s; D.offset = s.now - Date.now();
+  if (s.phase === "lobby" || s.phase === "countdown") { if (current !== "lobby") show("lobby"); renderLobby(s); }
+  else if (s.phase === "play" || s.phase === "reveal") duelRound(s);
+  else if (s.phase === "end") renderDuelEnd(s);
+  duelTick();
+}
+
+function seatHTML(p, me) {
+  if (!p) return `<span class="st">En attente d'un adversaire…</span>`;
+  const st = !p.online ? "Déconnecté" : p.ready ? "Prêt" : "Pas encore prêt";
+  return `<span class="nm">${esc(me ? p.name + " (toi)" : p.name)}</span><span class="st">${st}</span>`;
+}
+
+function renderLobby(s) {
+  $("roomCode").textContent = s.code;
+  $("seatMe").className = "seat" + (s.me.ready ? " ready" : "");
+  $("seatMe").innerHTML = seatHTML(s.me, true);
+  $("seatOpp").className = "seat" + (!s.opp ? " empty" : s.opp.ready ? " ready" : "");
+  $("seatOpp").innerHTML = seatHTML(s.opp, false);
+  for (const b of $("roundsPick").querySelectorAll("button")) {
+    b.setAttribute("aria-checked", +b.dataset.n === s.n); b.disabled = !s.host || s.phase !== "lobby";
+  }
+  $("roundsPick").title = s.host ? "" : "Le créateur de la salle choisit le nombre de manches.";
+  const counting = s.phase === "countdown";
+  $("readyBtn").hidden = counting;
+  $("readyBtn").textContent = s.me.ready ? "Je ne suis plus prêt" : "Je suis prêt";
+  $("readyBtn").classList.toggle("primary", !s.me.ready);
+  $("lobbyStatus").className = "lobby-status" + (counting ? " count" : "");
+  if (!counting) {
+    $("lobbyStatus").textContent = !s.opp ? "Dès que ton adversaire arrive, cliquez tous les deux sur « Je suis prêt »."
+      : !s.opp.ready && !s.me.ready ? "Cliquez tous les deux sur « Je suis prêt » pour lancer le duel."
+      : !s.opp.ready ? `En attente de ${s.opp.name}…`
+      : !s.me.ready ? `${s.opp.name} est prêt. À toi !` : "";
+  }
+}
+
+function duelRound(s) {
+  const key = `${s.game}:${s.idx}`;
+  if (current !== "game" || G.mode !== "duel") {
+    G.mode = "duel"; G.rounds = Array.from({ length: s.n }, () => null); G.results = [];
+    setDuelUI(true); show("game"); buildStrip();
+  }
+  if (G.rounds.length !== s.n) { G.rounds = Array.from({ length: s.n }, () => null); buildStrip(); }
+  s.results.forEach((r, i) => { G.rounds[i] = G.rounds[i] || { id: r.id, t: r.t, start: [0, 0, .5] }; });
+  if (s.round) G.rounds[s.idx] = s.round;
+  G.results = s.results.map(r => ({ id: r.id, t: r.t, truth: r.truth, guess: r.me && r.me.hex, d: r.me ? r.me.d : null, pts: r.me ? r.me.pts : 0 }));
+  G.results.forEach((r, i) => paintChip(i, r));
+  $("runTotal").textContent = s.me.total;
+  $("hudMode").textContent = `Duel, manche ${s.idx + 1} sur ${s.n}`;
+
+  if (s.phase === "play") {
+    if (D.roundKey !== key) { D.roundKey = key; D.sent = false; startRound(); }
+    const sent = D.sent || !!s.myGuess;
+    if (sent && G.phase === "guess") showWaiting(s.myGuess || cur());
+  } else if (D.revealKey !== key) {
+    D.revealKey = key; duelReveal(s);
+  }
+  updateDuelBar(s);
+}
+
+function updateDuelBar(s) {
+  const fill = (el, name, p, isMe) => {
+    el.querySelector(".who").textContent = name;
+    el.querySelector(".pts").textContent = p ? p.total : 0;
+    const st = el.querySelector(".state");
+    let txt = "", done = false;
+    if (!p) txt = "a quitté la salle";
+    else if (!p.online && !isMe) txt = "déconnecté";
+    else if (s.phase === "play") { done = p.submitted || (isMe && (D.sent || !!s.myGuess)); txt = done ? "a validé" : "réfléchit…"; }
+    else txt = "";
+    st.textContent = txt; st.classList.toggle("done", done);
+  };
+  fill($("dbMe"), "Toi", s.me, true);
+  fill($("dbOpp"), s.opp ? s.opp.name : "Adversaire", s.opp, false);
+  const a = s.me.total, b = s.opp ? s.opp.total : 0;
+  $("dbMe").classList.toggle("lead", a > b); $("dbOpp").classList.toggle("lead", b > a);
+}
+
+function showWaiting(hex) {
+  $("guessPanel").hidden = true; $("revealPanel").hidden = true; $("waitPanel").hidden = false;
+  $("waitSwatch").style.background = hex;
+  $("waitText").textContent = `Couleur envoyée. En attente de ${oppName()}…`;
+  $("flagHint").textContent = "";
+}
+
+async function duelSubmit() {
+  if (!D || !D.s || D.s.phase !== "play" || D.sent) return;
+  D.sent = true;
+  const hex = cur();
+  showWaiting(hex);
+  try { await duelAction("guess", { round: D.s.idx, hex }); }
+  catch (e) { $("waitText").textContent = e.message; }
+}
+
+function duelReveal(s) {
+  const r = s.results[s.idx], me = r.me || { hex: null, pts: 0 }, op = r.opp;
+  G.phase = "result"; G.showMine = false; G.t = r.t;
+  $("guessPanel").hidden = true; $("waitPanel").hidden = true; $("revealPanel").hidden = false;
+  $("verdict").textContent = me.hex ? verdict(me.d) : "Temps écoulé";
+  $("delta").textContent = me.hex ? `Écart de ${dec(me.d)} (ΔE 2000)` : "Aucune couleur envoyée à temps.";
+  const ink = hex => (F.lab(hex)[0] > 60 ? "#1c1c1c" : "#ffffff");
+  const cell = (id, hex, label) => {
+    const el = $(id); el.classList.toggle("none", !hex);
+    el.style.background = hex || ""; el.style.color = hex ? ink(hex) : "";
+    el.querySelector("span").textContent = label; el.querySelector("b").textContent = hex || "Rien";
+  };
+  cell("splitYou", me.hex, "Ta couleur");
+  cell("splitOpp", op && op.hex, s.opp ? s.opp.name : "Adversaire");
+  cell("splitTrue", r.truth, "La vraie");
+  const opPts = op ? op.pts : 0;
+  const who = me.pts > opPts ? "Manche pour toi." : me.pts < opPts ? `Manche pour ${esc(oppName())}.` : "Égalité sur cette manche.";
+  $("oppLine").innerHTML = `${esc(oppName())} : <b>+${opPts}</b>${op && op.hex ? `, écart de ${dec(op.d)}` : ", temps écoulé"}. ${who}`;
+  countUp($("gain"), me.pts);
+  $("flag").classList.toggle("clickable", !!me.hex);
+  $("flagHint").textContent = me.hex ? "Touche le drapeau pour comparer avec ta version." : "";
+  renderFlag();
+}
+
+function duelTick() {
+  if (!D || !D.s) return;
+  const s = D.s, ms = left();
+  if (s.phase === "countdown") {
+    $("lobbyStatus").textContent = `Départ dans ${Math.max(1, Math.ceil(ms / 1000))}`;
+  } else if (s.phase === "play") {
+    $("hudTime").textContent = fmtTime(Math.max(0, ms) + 999);
+    $("hudTime").classList.toggle("urgent", ms < 10000);
+    if (ms <= 250 && !D.sent && !s.myGuess && G.phase === "guess") duelSubmit();
+  } else if (s.phase === "reveal") {
+    $("hudTime").textContent = ""; $("hudTime").classList.remove("urgent");
+    const n = Math.max(0, Math.ceil(ms / 1000));
+    $("autoNext").textContent = s.idx + 1 < s.n ? `Manche suivante dans ${n} s` : `Résultats dans ${n} s`;
+  }
+}
+
+function renderDuelEnd(s) {
+  const key = `${s.game}`;
+  if (current !== "duelEnd") { show("duelEnd"); $("deStatus").textContent = ""; }
+  G.mode = "duel"; G.phase = "done";
+  const oppTotal = s.opp ? s.opp.total : s.results.reduce((a, r) => a + (r.opp ? r.opp.pts : 0), 0);
+  const oName = s.opp ? s.opp.name : (s.forfeit || "Adversaire");
+  $("deTitle").textContent = s.forfeit ? "Victoire par forfait" : s.winner === "me" ? "Victoire" : s.winner === "opp" ? "Défaite" : "Égalité";
+  $("deMeName").textContent = "Toi"; $("deMe").textContent = s.me.total;
+  $("deOppName").textContent = oName; $("deOpp").textContent = oppTotal;
+  $("drOpp").textContent = oName;
+  $("deSub").textContent = s.forfeit ? `${s.forfeit} a quitté la salle avant la fin.`
+    : s.tiebreak ? "Égalité de points : départagés par le temps de réponse."
+    : `${plural(s.n, "manche", "manches")} sur les mêmes drapeaux.`;
+  document.querySelector(".duel-recap-wrap").hidden = !s.results.length;
+  if (D.endKey !== key) {
+    D.endKey = key;
+    $("deRecap").innerHTML = s.results.map(r => {
+      const f = F.BY_ID[r.id], [w, h] = fitSize(f, 36, 24);
+      const a = r.me ? r.me.pts : 0, b = r.opp ? r.opp.pts : 0;
+      const c = (x, win) => `<span class="c${win ? " win" : ""}">${x && x.hex ? `<i style="background:${x.hex}"></i>` : `<i class="none"></i>`}<b>${x ? x.pts : 0}</b></span>`;
+      return `<li><span class="fl">${F.flagSVG(f, k => f.c[k], w, h)}<span>${esc(f.n)}</span></span>${c(r.me, a > b)}${c(r.opp, b > a)}<span class="c"><i style="background:${r.truth}"></i></span></li>`;
+    }).join("");
+  }
+  const rb = $("deRematch");
+  if (!s.opp) { rb.disabled = true; rb.textContent = "Revanche"; $("deStatus").textContent = `${oName} n'est plus dans la salle.`; }
+  else {
+    rb.disabled = false;
+    rb.textContent = s.me.ready ? "Annuler la revanche" : "Revanche";
+    rb.classList.toggle("primary", !s.me.ready);
+    $("deStatus").textContent = s.opp.ready && s.me.ready ? "" : s.opp.ready ? `${s.opp.name} veut sa revanche !`
+      : s.me.ready ? `En attente de ${s.opp.name}…` : (!s.opp.online ? `${s.opp.name} est déconnecté.` : "");
+  }
+}
+
+function duelShareText() {
+  const s = D.s, sq = p => (p >= 90 ? "🟩" : p >= 70 ? "🟨" : p >= 40 ? "🟧" : "🟥");
+  const oName = s.opp ? s.opp.name : (s.forfeit || "Adversaire");
+  const oppTotal = s.results.reduce((a, r) => a + (r.opp ? r.opp.pts : 0), 0);
+  return `La bonne couleur, duel\n${getName() || "Moi"} ${s.me.total} – ${oppTotal} ${oName}\n${s.results.map(r => sq(r.me ? r.me.pts : 0)).join("")}\n${location.origin}`;
+}
+
+$("duelCreate").addEventListener("click", duelCreate);
+$("joinForm").addEventListener("submit", e => { e.preventDefault(); duelJoin($("joinCode").value); });
+$("joinCode").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+$("readyBtn").addEventListener("click", async () => {
+  if (!D || !D.s) return;
+  try { await duelAction(D.s.me.ready ? "unready" : "ready"); } catch (e) { $("lobbyStatus").textContent = e.message; }
+});
+$("roundsPick").addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b || b.disabled || !D) return;
+  try { await duelAction("config", { rounds: +b.dataset.n }); } catch (err) { $("lobbyStatus").textContent = err.message; }
+});
+$("copyInvite").addEventListener("click", async () => {
+  const url = $("inviteLink").value;
+  try { await navigator.clipboard.writeText(url); $("inviteHint").textContent = "Lien copié. Envoie-le à ton adversaire."; }
+  catch { $("inviteLink").select(); $("inviteHint").textContent = "Sélectionne le lien et copie-le."; }
+});
+$("lobbyLeave").addEventListener("click", duelLeave);
+$("deLeave").addEventListener("click", duelLeave);
+$("deRematch").addEventListener("click", async () => {
+  if (!D || !D.s) return;
+  try { await duelAction(D.s.me.ready ? "unready" : "ready"); } catch (e) { $("deStatus").textContent = e.message; }
+});
+$("deShare").addEventListener("click", async () => {
+  const text = duelShareText();
+  try { await navigator.clipboard.writeText(text); $("deStatus").textContent = "Résultat copié."; }
+  catch { $("deStatus").textContent = text; }
+});
+
+/* Arrivée par un lien d'invitation (?salle=CODE) ou retour dans une salle ouverte */
+function openFromUrl() {
+  const code = (new URLSearchParams(location.search).get("salle") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+  if (!code) return;
+  const saved = LS.get("bc.duel");
+  if (saved && saved.code === code) return enterRoom(saved.code, saved.key);
+  $("joinCode").value = code;
+  if (getName().length >= 2) return duelJoin(code);
+  duelError(`Tu es invité dans la salle ${code}. Choisis un pseudo puis clique sur « Rejoindre ».`);
+  $("name").focus();
+}
+
 /* ---------- Démarrage ---------- */
 buildFan();
 refreshHome();
+openFromUrl();
 })();

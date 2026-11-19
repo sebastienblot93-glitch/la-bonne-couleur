@@ -5,6 +5,7 @@
  *   POST /api/score                     → enregistre une partie, recalcule le score côté serveur
  *   GET  /api/leaderboard?board=daily|free[&pid=]
  *   GET  /api/stats
+ *   /api/duel/*                         → duels en temps réel (voir duel.js)
  *   GET  /healthz
  */
 "use strict";
@@ -146,9 +147,11 @@ async function apiLeaderboard(req, res, url) {
 
 async function apiStats(req, res) {
   const date = parisDate();
-  const [games, today] = await Promise.all([store.get("games"), store.count("daily:" + date)]);
-  json(res, 200, { games, today, date });
+  const [games, today, nDuels] = await Promise.all([store.get("games"), store.count("daily:" + date), store.get("duels")]);
+  json(res, 200, { games, today, duels: nDuels, date });
 }
+
+const duels = require("./duel.js")({ Flags, json, fail, readBody, limited, cleanName, validPid, store });
 
 /* ---------- Fichiers statiques ---------- */
 const TYPES = {
@@ -181,6 +184,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === "/api/score" && req.method === "POST") return await apiScore(req, res);
       if (url.pathname === "/api/leaderboard" && req.method === "GET") return await apiLeaderboard(req, res, url);
       if (url.pathname === "/api/stats" && req.method === "GET") return await apiStats(req, res);
+      if (url.pathname.startsWith("/api/duel/") && await duels(req, res, url)) return;
       return fail(res, 404, "Route inconnue.");
     }
     if (req.method !== "GET" && req.method !== "HEAD") { res.writeHead(405, { Allow: "GET, HEAD" }); return res.end(); }

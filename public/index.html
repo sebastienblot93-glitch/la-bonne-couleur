@@ -54,6 +54,21 @@
           <button class="btn" id="playFree">Lancer une partie</button>
         </div>
       </article>
+      <article class="mode mode-duel">
+        <div>
+          <h2>Duel</h2>
+          <p class="mode-sub">En direct contre un ami</p>
+          <p class="mode-desc">Crée une salle, envoie le lien, et affrontez-vous sur les mêmes drapeaux. 45 secondes par manche.</p>
+        </div>
+        <div class="duel-foot">
+          <button class="btn" id="duelCreate">Créer une salle</button>
+          <form class="joinform" id="joinForm">
+            <input id="joinCode" maxlength="4" placeholder="Code" aria-label="Code de la salle" autocomplete="off" spellcheck="false">
+            <button class="btn" type="submit">Rejoindre</button>
+          </form>
+          <p class="duel-err" id="duelErr" role="alert"></p>
+        </div>
+      </article>
     </div>
   </section>
 
@@ -80,6 +95,10 @@
 
   <div class="game-grid">
     <div class="play-col">
+      <div class="duelbar" id="duelBar" hidden>
+        <div class="side" id="dbMe"><b class="who"></b><span class="pts"></span><small class="state"></small></div>
+        <div class="side opp" id="dbOpp"><b class="who"></b><span class="pts"></span><small class="state"></small></div>
+      </div>
       <div class="booth">
         <p class="prompt" id="prompt"></p>
         <div class="stage"><div class="flag" id="flag"></div></div>
@@ -104,6 +123,11 @@
         </div>
       </div>
 
+      <div class="panel waiting" id="waitPanel" hidden>
+        <span class="swatch" id="waitSwatch"></span>
+        <p id="waitText"></p>
+      </div>
+
       <div class="panel reveal" id="revealPanel" hidden>
         <div class="reveal-head" aria-live="polite">
           <p class="gain" id="gain"></p>
@@ -114,9 +138,12 @@
         </div>
         <div class="split">
           <div id="splitYou"><span>Ta couleur</span><b></b></div>
+          <div id="splitOpp" hidden><span></span><b></b></div>
           <div id="splitTrue"><span>La vraie</span><b></b></div>
         </div>
+        <p class="oppline" id="oppLine" hidden></p>
         <button class="btn primary big" id="next">Manche suivante</button>
+        <p class="autonext" id="autoNext" hidden></p>
       </div>
     </div>
 
@@ -167,6 +194,60 @@
   <p class="board-meta" id="boardMeta"></p>
   <ol class="board" id="fullBoard"></ol>
   <p class="board-me" id="boardMe"></p>
+</main>
+
+<!-- ============ SALLE DE DUEL ============ -->
+<main id="lobby" class="screen lobby" hidden>
+  <header class="hud">
+    <button class="link back" id="lobbyLeave">Quitter la salle</button>
+    <p class="hud-mode">Duel</p>
+    <span></span>
+  </header>
+  <section class="room">
+    <p class="room-label">Code de la salle</p>
+    <p class="room-code" id="roomCode" aria-live="polite"></p>
+    <div class="invite">
+      <input id="inviteLink" readonly aria-label="Lien d'invitation">
+      <button class="btn" id="copyInvite">Copier le lien</button>
+    </div>
+    <p class="invite-hint" id="inviteHint">Envoie ce lien à ton adversaire, ou donne-lui le code.</p>
+  </section>
+  <section class="seats">
+    <div class="seat" id="seatMe"></div>
+    <p class="vs">contre</p>
+    <div class="seat" id="seatOpp"></div>
+  </section>
+  <section class="lobby-foot">
+    <div class="rounds" id="roundsPick" role="radiogroup" aria-label="Nombre de manches">
+      <button role="radio" data-n="5">5 manches</button>
+      <button role="radio" data-n="10">10 manches</button>
+    </div>
+    <button class="btn primary big" id="readyBtn">Je suis prêt</button>
+    <p class="lobby-status" id="lobbyStatus" aria-live="polite"></p>
+  </section>
+</main>
+
+<!-- ============ FIN DE DUEL ============ -->
+<main id="duelEnd" class="screen duelend" hidden>
+  <header class="hud">
+    <button class="link back" id="deLeave">Quitter la salle</button>
+    <p class="hud-mode">Duel</p>
+    <span></span>
+  </header>
+  <section class="end-hero">
+    <p class="de-title" id="deTitle"></p>
+    <p class="de-score"><span class="de-side"><small id="deMeName"></small><b id="deMe">0</b></span><span class="de-side"><small id="deOppName"></small><b id="deOpp">0</b></span></p>
+    <p class="end-rank" id="deSub"></p>
+  </section>
+  <div class="duel-recap-wrap">
+    <div class="dr-head"><span>Drapeau</span><span id="drMe">Toi</span><span id="drOpp">Adversaire</span><span>La vraie</span></div>
+    <ol class="duel-recap" id="deRecap"></ol>
+  </div>
+  <div class="end-actions">
+    <button class="btn" id="deShare">Copier le résultat</button>
+    <button class="btn primary" id="deRematch">Revanche</button>
+  </div>
+  <p class="toast" id="deStatus" role="status"></p>
 </main>
 
 <script src="flags.js"></script>
