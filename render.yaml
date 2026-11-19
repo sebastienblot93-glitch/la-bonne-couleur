@@ -1,5 +1,5 @@
 services:
-  # Le jeu (site + API), hébergé en Europe
+  # Le jeu (site + API + duels), hébergé en Europe
   - type: web
     runtime: node
     name: la-bonne-couleur
@@ -16,19 +16,7 @@ services:
       # Secret qui signe les parties (anti-triche), généré par Render
       - key: GAME_SECRET
         generateValue: true
-      # Connexion interne à la base du classement
+      # Base du classement : adresse Upstash (rediss://default:MOT_DE_PASSE@xxx.upstash.io:6379)
+      # À saisir dans le tableau de bord Render (onglet Environment), jamais dans ce fichier.
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: la-bonne-couleur-classement
-          property: connectionString
-
-  # Base Key Value (compatible Redis) pour le classement, en Europe aussi
-  - type: keyvalue
-    name: la-bonne-couleur-classement
-    region: frankfurt
-    plan: free
-    # Garder les scores plutôt que d'en effacer quand la mémoire est pleine
-    maxmemoryPolicy: noeviction
-    # Aucun accès depuis Internet : seul le jeu (réseau privé Render) peut s'y connecter
-    ipAllowList: []
+        sync: false

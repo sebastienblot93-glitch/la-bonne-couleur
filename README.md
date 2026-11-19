@@ -28,26 +28,22 @@ Ouvrir directement `public/index.html` fonctionne aussi (mode hors ligne, sans c
 
 ## Déployer sur Render (Blueprint) — en Europe
 
-`render.yaml` crée deux services dans la région **Francfort** :
+`render.yaml` crée le service web `la-bonne-couleur` dans la région **Francfort** (offre gratuite).
+Le classement est stocké dans une base **Upstash Redis** (offre gratuite, données conservées).
 
-| Service | Rôle | Offre |
-|---|---|---|
-| `la-bonne-couleur` | le jeu (Node) | gratuite |
-| `la-bonne-couleur-classement` | base Key Value du classement, privée | gratuite |
+1. Sur [console.upstash.com](https://console.upstash.com), crée une base Redis **régionale** en Europe
+   (Francfort de préférence), éviction désactivée, puis copie son adresse `rediss://…` (onglet de connexion, format TCP).
+2. Dashboard Render → **New → Blueprint** → choisis ce dépôt (branche `main`).
+3. Colle l'adresse Upstash dans `REDIS_URL` quand Render la demande (ou plus tard : service → **Environment**).
+   `GAME_SECRET` est généré automatiquement.
 
-1. Dashboard Render → **New → Blueprint** → choisis ce dépôt (branche `main`).
-2. Vérifie que les deux services sont en **Frankfurt**, puis **Deploy Blueprint**.
-   `GAME_SECRET` est généré automatiquement et `REDIS_URL` est relié tout seul à la base.
-
-Si le Blueprint existe déjà : Render applique les changements de `render.yaml` à chaque push
-(ou bouton **Manual Sync** sur la page du Blueprint).
-
-### Limites de l'offre gratuite
+### Limites des offres gratuites
 
 - Le jeu se met en veille après ~15 min sans visite : le premier chargement suivant prend jusqu'à une minute.
-- La base Key Value gratuite est en mémoire : **le classement est perdu si elle redémarre** (rare : maintenance, mise à jour).
-  Pour un classement garanti, passe la base sur une offre payante avec persistance (`plan: starter`).
-- La région d'un service ne peut pas être changée après sa création.
+- Upstash gratuit : 256 Mo et 500 000 commandes par mois (≈ 20 000 parties). Une base sans aucune activité
+  pendant 14 jours est archivée (avec sauvegarde restaurable depuis la console Upstash).
+- Sans `REDIS_URL`, le serveur garde le classement en mémoire : il est perdu à chaque redémarrage.
+- La région d'un service Render ne peut pas être changée après sa création.
 - Les salles de duel vivent dans la mémoire du serveur : un redéploiement ou une mise en veille
   les ferme (les joueurs sont prévenus et peuvent recréer une salle). Les duels supposent une seule instance du service.
 
@@ -61,6 +57,6 @@ public/
   flags.js     drapeaux, couleurs, ΔE 2000, tirage des parties (partagé avec le serveur)
 server.js      serveur HTTP + API (/api/game, /api/score, /api/leaderboard, /api/stats)
 duel.js        salles de duel en mémoire, flux temps réel (Server-Sent Events)
-store.js       classement : client Redis minimal, ou mémoire en local
+store.js       classement : client Redis minimal (Upstash, TLS), ou mémoire en local
 render.yaml    Blueprint Render (Francfort)
 ```
