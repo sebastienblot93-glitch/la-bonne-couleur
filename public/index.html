@@ -3,495 +3,173 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>La bonne couleur — jeu de drapeaux</title>
-<style>
-  :root{
-    --bg:#f6f7fb; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e6e8ef;
-    --blue:#1a5cff; --blue-d:#0f47d6; --good:#13a05f; --warn:#e08a00; --bad:#e0353b;
-  }
-  *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:ui-rounded,"SF Pro Rounded","Nunito","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;}
-  .app{max-width:580px;margin:0 auto;padding:18px 18px 40px}
-  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-  .brand{font-weight:800;font-size:17px;letter-spacing:-.2px;display:flex;align-items:center;gap:8px}
-  .brand .dot{width:18px;height:18px;border-radius:6px;background:conic-gradient(#e0353b,#ffce00,#13a05f,#1a5cff,#e0353b)}
-  .stats{display:flex;gap:8px}
-  .pill{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:700;color:var(--muted)}
-  .pill b{color:var(--ink)}
-  .card{background:var(--card);border-radius:22px;box-shadow:0 1px 2px rgba(20,30,60,.05),0 8px 30px rgba(20,30,60,.06);padding:22px 22px 26px}
-  .progress{height:5px;background:var(--line);border-radius:5px;overflow:hidden;margin:-4px 0 18px}
-  .progress i{display:block;height:100%;background:var(--blue);border-radius:5px;transition:width .4s}
-  .prompt{text-align:center;color:#4b5363;font-size:16px;margin:0 0 20px;line-height:1.4}
-  .prompt b{color:var(--ink);font-weight:800}
-  .stage{display:flex;justify-content:center;align-items:center;min-height:236px;margin-bottom:22px}
-  .flag{position:relative;border-radius:8px;overflow:hidden;box-shadow:0 6px 22px rgba(20,30,60,.22);cursor:default;line-height:0}
-  .flag svg{display:block}
-  .flag canvas{position:absolute;inset:0;pointer-events:none}
-  .flag.clickable{cursor:pointer}
-  .flag-tag{position:absolute;left:8px;top:8px;line-height:1;background:rgba(15,20,35,.72);color:#fff;font-size:11px;font-weight:700;padding:5px 8px;border-radius:999px;letter-spacing:.3px}
-  .sliders{display:grid;grid-template-columns:44px 1fr;gap:14px 12px;align-items:center}
-  .sliders label{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--muted)}
-  .track{position:relative;height:38px;border-radius:19px;cursor:pointer;touch-action:none;outline:none;
-    box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
-  .track:focus-visible{box-shadow:0 0 0 3px rgba(26,92,255,.35)}
-  .thumb{position:absolute;top:50%;width:32px;height:32px;border-radius:50%;background:#fff;
-    transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.35),inset 0 0 0 1px rgba(0,0,0,.08);pointer-events:none}
-  .hue{background:linear-gradient(to right,#f00,#ff0 16.66%,#0f0 33.33%,#0ff 50%,#00f 66.66%,#f0f 83.33%,#f00)}
-  .hexrow{display:flex;justify-content:center;align-items:center;gap:10px;margin:12px 0 20px}
-  .swatch{width:22px;height:22px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12)}
-  .hex{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:15px;letter-spacing:2px;color:#4b5363;
-    border:1px solid transparent;background:transparent;width:104px;text-align:center;padding:4px 6px;border-radius:8px;text-transform:uppercase}
-  .hex:hover{border-color:var(--line)}
-  .hex:focus{outline:none;border-color:var(--blue);background:#f3f6ff}
-  .btn{display:block;width:100%;border:0;border-radius:999px;background:var(--blue);color:#fff;font:inherit;font-weight:800;font-size:18px;
-    padding:17px;cursor:pointer;transition:background .15s,transform .05s}
-  .btn:hover{background:var(--blue-d)}
-  .btn:active{transform:scale(.99)}
-  .btn.ghost{background:transparent;color:var(--blue);border:2px solid var(--blue);margin-top:10px}
-  .btn.ghost:hover{background:#f0f4ff}
-  .hint{text-align:center;font-size:12px;color:var(--muted);margin-top:12px}
-  /* résultat */
-  .result{display:none}
-  .verdict{text-align:center;margin:-4px 0 16px}
-  .verdict .big{font-size:26px;font-weight:900;letter-spacing:-.4px}
-  .verdict .pts{font-size:15px;color:var(--muted);margin-top:2px}
-  .verdict .pts b{color:var(--ink)}
-  .compare{display:grid;grid-template-columns:1fr 1fr;border-radius:16px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06);margin-bottom:12px}
-  .compare div{height:84px;display:flex;flex-direction:column;justify-content:flex-end;padding:10px 12px;font-size:12px;font-weight:700}
-  .compare span{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;letter-spacing:1px;font-weight:600}
-  .meter{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:0 2px 18px}
-  .ok{color:var(--good)} .mid{color:var(--warn)} .ko{color:var(--bad)}
-  /* fin */
-  .end{display:none}
-  .end h2{text-align:center;margin:0 0 4px;font-size:15px;color:var(--muted);font-weight:700}
-  .total{text-align:center;font-size:54px;font-weight:900;letter-spacing:-1px;line-height:1.05}
-  .total small{font-size:20px;color:var(--muted);font-weight:700}
-  .best{text-align:center;color:var(--muted);font-size:13px;margin:6px 0 18px}
-  .rows{border-top:1px solid var(--line);margin-bottom:20px}
-  .row{display:grid;grid-template-columns:56px 1fr 46px 46px 48px;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
-  .row .mini{line-height:0;border-radius:3px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.25);width:fit-content}
-  .row .sw{height:24px;border-radius:7px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
-  .row .p{text-align:right;font-weight:800}
-  .row .name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .legend{display:grid;grid-template-columns:56px 1fr 46px 46px 48px;gap:10px;font-size:10px;font-weight:800;letter-spacing:.8px;color:var(--muted);padding-bottom:6px}
-  @media (max-width:420px){
-    .app{padding:12px 10px 30px}.card{padding:18px 14px 22px}
-    .sliders{grid-template-columns:50px 1fr;gap:12px 8px}.sliders label{font-size:10px;letter-spacing:.6px}
-    .brand{font-size:15px}.brand span:last-child{display:none}.pill{padding:5px 10px;font-size:12px}
-    .stage{min-height:190px}
-  }
-</style>
+<title>La bonne couleur — le jeu des drapeaux</title>
+<meta name="description" content="Une couleur est fausse sur chaque drapeau. Retrouve-la au plus juste et grimpe au classement du jour.">
+<meta name="theme-color" content="#CACACA">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231c1c1c'/%3E%3Crect x='6' y='9' width='7' height='14' fill='%23fff'/%3E%3Crect x='13' y='9' width='7' height='14' fill='%23999'/%3E%3Crect x='20' y='9' width='7' height='14' fill='%23555'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<div class="app">
-  <div class="top">
-    <div class="brand"><span class="dot"></span><span>La bonne couleur</span></div>
-    <div class="stats">
-      <div class="pill">Manche <b id="roundTxt">1</b>/<span id="roundsTxt">10</span></div>
-      <div class="pill">Score <b id="scoreTxt">0</b></div>
+
+<!-- ============ ACCUEIL ============ -->
+<main id="home" class="screen home">
+  <section class="hero">
+    <div class="hero-text">
+      <h1 class="title">La bonne<br>couleur</h1>
+      <p class="lede">Sur chaque drapeau, une couleur est fausse. Retrouve-la au plus juste&nbsp;: plus tu es proche, plus tu marques de points.</p>
+      <p class="stats" id="stats" aria-live="polite"></p>
     </div>
-  </div>
+    <div class="fan" id="fan" aria-hidden="true"></div>
+  </section>
 
-  <div class="card">
-    <div class="progress"><i id="prog" style="width:0"></i></div>
+  <section class="setup">
+    <label class="field">
+      <span>Ton pseudo pour le classement</span>
+      <input id="name" maxlength="18" autocomplete="nickname" spellcheck="false" placeholder="Par exemple : Vexillo">
+    </label>
 
-    <!-- Jeu -->
-    <div id="play">
-      <p class="prompt" id="prompt"></p>
-      <div class="stage"><div class="flag" id="flag"></div></div>
+    <div class="modes">
+      <article class="mode mode-daily">
+        <div>
+          <h2>Défi du jour</h2>
+          <p class="mode-sub" id="dailyDate"></p>
+          <p class="mode-desc">Les mêmes 10 drapeaux pour tout le monde, une seule tentative. Nouveau défi chaque jour à minuit.</p>
+        </div>
+        <div class="mode-foot">
+          <p class="streak" id="streak"></p>
+          <button class="btn primary" id="playDaily">Jouer le défi</button>
+        </div>
+      </article>
+      <article class="mode">
+        <div>
+          <h2>Partie libre</h2>
+          <p class="mode-sub">95 drapeaux possibles</p>
+          <p class="mode-desc">10 drapeaux tirés au hasard. Rejoue autant que tu veux, seul ton meilleur score compte.</p>
+        </div>
+        <div class="mode-foot">
+          <p class="streak" id="bestFree"></p>
+          <button class="btn" id="playFree">Lancer une partie</button>
+        </div>
+      </article>
+    </div>
+  </section>
 
-      <div id="guess">
+  <section class="board-preview">
+    <div class="section-head">
+      <h2>Classement du jour</h2>
+      <button class="link" id="openBoard">Tout voir</button>
+    </div>
+    <ol class="board compact" id="previewBoard"></ol>
+  </section>
+
+  <footer class="foot">
+    <p>Les écarts de couleur sont mesurés avec la formule CIEDE2000, proche de la perception humaine. Le temps sert seulement à départager les ex æquo.</p>
+  </footer>
+</main>
+
+<!-- ============ JEU ============ -->
+<main id="game" class="screen game" hidden>
+  <header class="hud">
+    <button class="link back" id="quit">Quitter</button>
+    <p class="hud-mode" id="hudMode"></p>
+    <p class="hud-time" id="hudTime" aria-label="Temps écoulé">0:00</p>
+  </header>
+
+  <div class="game-grid">
+    <div class="play-col">
+      <div class="booth">
+        <p class="prompt" id="prompt"></p>
+        <div class="stage"><div class="flag" id="flag"></div></div>
+        <p class="flag-hint" id="flagHint"></p>
+      </div>
+
+      <div class="panel" id="guessPanel">
         <div class="sliders">
-          <label>TEINTE</label><div class="track hue" id="sH" tabindex="0" role="slider" aria-label="Teinte"><div class="thumb"></div></div>
-          <label>SAT</label><div class="track" id="sS" tabindex="0" role="slider" aria-label="Saturation"><div class="thumb"></div></div>
-          <label>LUM</label><div class="track" id="sV" tabindex="0" role="slider" aria-label="Luminosité"><div class="thumb"></div></div>
+          <label for="sH">Teinte</label>
+          <div class="track hue" id="sH" tabindex="0" role="slider" aria-label="Teinte" aria-valuemin="0" aria-valuemax="100"><div class="thumb"></div></div>
+          <label for="sS">Saturation</label>
+          <div class="track" id="sS" tabindex="0" role="slider" aria-label="Saturation" aria-valuemin="0" aria-valuemax="100"><div class="thumb"></div></div>
+          <label for="sV">Luminosité</label>
+          <div class="track" id="sV" tabindex="0" role="slider" aria-label="Luminosité" aria-valuemin="0" aria-valuemax="100"><div class="thumb"></div></div>
         </div>
-        <div class="hexrow">
-          <div class="swatch" id="sw"></div>
-          <input class="hex" id="hex" maxlength="7" spellcheck="false" aria-label="Code hexadécimal">
+        <div class="panel-foot">
+          <div class="hexbox">
+            <span class="swatch" id="swatch"></span>
+            <input class="hex" id="hex" maxlength="7" spellcheck="false" aria-label="Code hexadécimal de ta couleur">
+          </div>
+          <button class="btn primary big" id="submit">Valider ma couleur</button>
         </div>
-        <button class="btn" id="submit">Valider</button>
-        <div class="hint">Astuce : flèches du clavier pour affiner (Maj = pas plus grand), Entrée pour valider.</div>
       </div>
 
-      <div class="result" id="result">
-        <div class="verdict"><div class="big" id="vBig"></div><div class="pts" id="vPts"></div></div>
-        <div class="compare">
-          <div id="cYou">Ta couleur<span></span></div>
-          <div id="cTrue">Vraie couleur<span></span></div>
+      <div class="panel reveal" id="revealPanel" hidden>
+        <div class="reveal-head" aria-live="polite">
+          <p class="gain" id="gain"></p>
+          <div>
+            <p class="verdict" id="verdict"></p>
+            <p class="delta" id="delta"></p>
+          </div>
         </div>
-        <div class="meter"><span id="mDe"></span><span>Clique sur le drapeau pour comparer</span></div>
-        <button class="btn" id="next">Manche suivante</button>
+        <div class="split">
+          <div id="splitYou"><span>Ta couleur</span><b></b></div>
+          <div id="splitTrue"><span>La vraie</span><b></b></div>
+        </div>
+        <button class="btn primary big" id="next">Manche suivante</button>
       </div>
     </div>
 
-    <!-- Fin -->
-    <div class="end" id="end">
-      <h2>Score final</h2>
-      <div class="total"><span id="tot">0</span><small> / <span id="totMax">1000</span></small></div>
-      <div class="best" id="best"></div>
-      <div class="legend"><span></span><span>PAYS</span><span>TOI</span><span>VRAI</span><span style="text-align:right">PTS</span></div>
-      <div class="rows" id="rows"></div>
-      <button class="btn" id="again">Rejouer</button>
-    </div>
+    <aside class="strip-col">
+      <p class="strip-title">Ton nuancier</p>
+      <ol class="strip" id="strip"></ol>
+      <p class="strip-total">Total <b id="runTotal">0</b></p>
+    </aside>
   </div>
-</div>
+</main>
 
-<script>
-(() => {
-"use strict";
-const ROUNDS = 10;
+<!-- ============ FIN DE PARTIE ============ -->
+<main id="end" class="screen end" hidden>
+  <header class="hud">
+    <button class="link back" id="endHome">Accueil</button>
+    <p class="hud-mode" id="endMode"></p>
+    <span></span>
+  </header>
+  <section class="end-hero">
+    <p class="end-score"><span id="endTotal">0</span><small>/1000</small></p>
+    <p class="end-rank" id="endRank" aria-live="polite"></p>
+    <form class="save" id="saveForm" hidden>
+      <label class="field"><span>Choisis un pseudo pour entrer au classement</span>
+        <input id="saveName" maxlength="18" spellcheck="false" placeholder="Ton pseudo"></label>
+      <button class="btn primary" type="submit">Enregistrer mon score</button>
+    </form>
+  </section>
+  <ol class="recap" id="recap"></ol>
+  <div class="end-actions">
+    <button class="btn" id="share">Copier mon résultat</button>
+    <button class="btn" id="endBoard">Voir le classement</button>
+    <button class="btn primary" id="again">Rejouer</button>
+  </div>
+  <p class="toast" id="toast" role="status"></p>
+</main>
 
-/* ---------- Constructeur de dessins SVG ---------- */
-let UID = 0;
-const n4 = v => +(+v).toFixed(4);
-function B(f, W, H) {
-  const st = i => `style="fill:${f(i)}"`;
-  const eps = 0.004 * Math.max(W, H);
-  const g = {
-    r: (x, y, w, h, i) => `<rect x="${n4(x)}" y="${n4(y)}" width="${n4(w)}" height="${n4(h)}" ${st(i)}/>`,
-    bg: i => g.r(0, 0, W, H, i),
-    h: (ix, wt) => { wt = wt || ix.map(() => 1); const s = wt.reduce((a, b) => a + b, 0); let y = 0, o = '';
-      ix.forEach((i, k) => { const hh = wt[k] / s * H; o += g.r(0, y, W, hh + (k < ix.length - 1 ? eps : 0), i); y += hh; }); return o; },
-    v: (ix, wt) => { wt = wt || ix.map(() => 1); const s = wt.reduce((a, b) => a + b, 0); let x = 0, o = '';
-      ix.forEach((i, k) => { const ww = wt[k] / s * W; o += g.r(x, 0, ww + (k < ix.length - 1 ? eps : 0), H, i); x += ww; }); return o; },
-    p: (pts, i) => `<polygon points="${pts.map(n4).join(' ')}" ${st(i)}/>`,
-    c: (cx, cy, r, i) => `<circle cx="${n4(cx)}" cy="${n4(cy)}" r="${n4(r)}" ${st(i)}/>`,
-    s: (cx, cy, R, i, rot = 0, n = 5, k = 0.381966) => { const pts = [];
-      for (let j = 0; j < 2 * n; j++) { const a = (-90 + rot + j * 180 / n) * Math.PI / 180, rr = j % 2 ? R * k : R;
-        pts.push(cx + rr * Math.cos(a), cy + rr * Math.sin(a)); } return g.p(pts, i); },
-    l: (x1, y1, x2, y2, w, i) => { const dx = x2 - x1, dy = y2 - y1;
-      return `<line x1="${n4(x1 - dx * .3)}" y1="${n4(y1 - dy * .3)}" x2="${n4(x2 + dx * .3)}" y2="${n4(y2 + dy * .3)}" style="stroke:${f(i)};stroke-width:${w}"/>`; },
-    cr: (cx, cy, r, cx2, cy2, r2, i) => { const id = 'mk' + (++UID);
-      return `<mask id="${id}" maskUnits="userSpaceOnUse" x="-1000" y="-1000" width="3000" height="3000"><rect x="-1000" y="-1000" width="3000" height="3000" fill="#fff"/><circle cx="${n4(cx2)}" cy="${n4(cy2)}" r="${n4(r2)}" fill="#000"/></mask><circle cx="${n4(cx)}" cy="${n4(cy)}" r="${n4(r)}" mask="url(#${id})" ${st(i)}/>`; },
-    ring: (cx, cy, r, w, i) => `<circle cx="${cx}" cy="${cy}" r="${r}" style="fill:none;stroke:${f(i)};stroke-width:${w}"/>`,
-    path: (d, i) => `<path d="${d}" ${st(i)}/>`,
-    pentagram: (cx, cy, R, w, i) => { const P = [];
-      for (let j = 0; j < 5; j++) { const a = (-90 + j * 72) * Math.PI / 180; P.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]); }
-      const o = [0, 2, 4, 1, 3].map(j => P[j].map(n4).join(','));
-      return `<path d="M${o.join(' L')} Z" style="fill:none;stroke:${f(i)};stroke-width:${w};stroke-linejoin:miter;stroke-miterlimit:10"/>`; },
-    zig: (x0, x1, n, i) => { const pts = [0, 0, x0, 0];
-      for (let k = 0; k < n; k++) pts.push(x1, (k + .5) * H / n, x0, (k + 1) * H / n);
-      pts.push(0, H); return g.p(pts, i); },
-  };
-  return g;
-}
+<!-- ============ CLASSEMENT ============ -->
+<main id="boardScreen" class="screen boardscreen" hidden>
+  <header class="hud">
+    <button class="link back" id="boardBack">Retour</button>
+    <p class="hud-mode">Classement</p>
+    <span></span>
+  </header>
+  <div class="tabs" role="tablist">
+    <button role="tab" class="tab" id="tabDaily" aria-selected="true">Défi du jour</button>
+    <button role="tab" class="tab" id="tabFree" aria-selected="false">Records en partie libre</button>
+  </div>
+  <p class="board-meta" id="boardMeta"></p>
+  <ol class="board" id="fullBoard"></ol>
+  <p class="board-me" id="boardMe"></p>
+</main>
 
-/* ---------- Drapeaux : nom, article, viewBox W×H, couleurs, dessin ---------- */
-const FLAGS = [
- {n:'France',de:'de la',W:3,H:2,c:['#0055A4','#FFFFFF','#EF4135'],d:g=>g.v([0,1,2])},
- {n:'Italie',de:"de l'",W:3,H:2,c:['#009246','#FFFFFF','#CE2B37'],d:g=>g.v([0,1,2])},
- {n:'Allemagne',de:"de l'",W:5,H:3,c:['#000000','#DD0000','#FFCE00'],d:g=>g.h([0,1,2])},
- {n:'Belgique',de:'de la',W:15,H:13,c:['#000000','#FDDA24','#EF3340'],d:g=>g.v([0,1,2])},
- {n:'Irlande',de:"de l'",W:2,H:1,c:['#169B62','#FFFFFF','#FF883E'],d:g=>g.v([0,1,2])},
- {n:'Pays-Bas',de:'des',W:3,H:2,c:['#AE1C28','#FFFFFF','#21468B'],d:g=>g.h([0,1,2])},
- {n:'Luxembourg',de:'du',W:5,H:3,c:['#EA141D','#FFFFFF','#00A2E1'],d:g=>g.h([0,1,2])},
- {n:'Autriche',de:"de l'",W:3,H:2,c:['#C8102E','#FFFFFF'],d:g=>g.h([0,1,0])},
- {n:'Pologne',de:'de la',W:8,H:5,c:['#FFFFFF','#DC143C'],d:g=>g.h([0,1])},
- {n:'Ukraine',de:"de l'",W:3,H:2,c:['#0057B7','#FFD700'],d:g=>g.h([0,1])},
- {n:'Russie',de:'de la',W:3,H:2,c:['#FFFFFF','#0039A6','#D52B1E'],d:g=>g.h([0,1,2])},
- {n:'Hongrie',de:'de la',W:2,H:1,c:['#CD2A3E','#FFFFFF','#436F4D'],d:g=>g.h([0,1,2])},
- {n:'Bulgarie',de:'de la',W:5,H:3,c:['#FFFFFF','#00966E','#D62612'],d:g=>g.h([0,1,2])},
- {n:'Lituanie',de:'de la',W:5,H:3,c:['#FDB913','#006A44','#C1272D'],d:g=>g.h([0,1,2])},
- {n:'Estonie',de:"de l'",W:11,H:7,c:['#0072CE','#000000','#FFFFFF'],d:g=>g.h([0,1,2])},
- {n:'Roumanie',de:'de la',W:3,H:2,c:['#002B7F','#FCD116','#CE1126'],d:g=>g.v([0,1,2])},
- {n:'Lettonie',de:'de la',W:2,H:1,c:['#9E3039','#FFFFFF'],d:g=>g.h([0,1,0],[2,1,2])},
- {n:'Tchad',de:'du',W:3,H:2,c:['#002664','#FECB00','#C60C30'],d:g=>g.v([0,1,2])},
- {n:'Mali',de:'du',W:3,H:2,c:['#14B53A','#FCD116','#CE1126'],d:g=>g.v([0,1,2])},
- {n:'Guinée',de:'de la',W:3,H:2,c:['#CE1126','#FCD116','#009460'],d:g=>g.v([0,1,2])},
- {n:'Nigeria',de:'du',W:2,H:1,c:['#008751','#FFFFFF'],d:g=>g.v([0,1,0])},
- {n:"Côte d'Ivoire",de:'de la',W:3,H:2,c:['#F77F00','#FFFFFF','#009E60'],d:g=>g.v([0,1,2])},
- {n:'Pérou',de:'du',W:3,H:2,c:['#D91023','#FFFFFF'],d:g=>g.v([0,1,0])},
- {n:'Colombie',de:'de la',W:3,H:2,c:['#FCD116','#003893','#CE1126'],d:g=>g.h([0,1,2],[2,1,1])},
- {n:'Arménie',de:"de l'",W:2,H:1,c:['#D90012','#0033A0','#F2A800'],d:g=>g.h([0,1,2])},
- {n:'Bolivie',de:'de la',W:3,H:2,c:['#D52B1E','#F9E300','#007934'],d:g=>g.h([0,1,2])},
- {n:'Gabon',de:'du',W:4,H:3,c:['#009E60','#FCD116','#3A75C4'],d:g=>g.h([0,1,2])},
- {n:'Sierra Leone',de:'de la',W:3,H:2,c:['#1EB53A','#FFFFFF','#0072C6'],d:g=>g.h([0,1,2])},
- {n:'Yémen',de:'du',W:3,H:2,c:['#CE1126','#FFFFFF','#000000'],d:g=>g.h([0,1,2])},
- {n:'Indonésie',de:"de l'",W:3,H:2,c:['#FF0000','#FFFFFF'],d:g=>g.h([0,1])},
- {n:'Thaïlande',de:'de la',W:3,H:2,c:['#A51931','#F4F5F8','#2D2A4A'],d:g=>g.h([0,1,2,1,0],[1,1,2,1,1])},
- {n:'Costa Rica',de:'du',W:5,H:3,c:['#002B7F','#FFFFFF','#CE1126'],d:g=>g.h([0,1,2,1,0],[1,1,2,1,1])},
- {n:'Maurice',de:'de',W:3,H:2,c:['#EA2839','#1A206D','#FFD500','#00A551'],d:g=>g.h([0,1,2,3])},
- {n:'Gambie',de:'de la',W:27,H:18,c:['#CE1126','#FFFFFF','#0C1C8C','#3A7728'],d:g=>g.h([0,1,2,1,3],[6,1,4,1,6])},
- {n:'Botswana',de:'du',W:36,H:24,c:['#75AADB','#FFFFFF','#000000'],d:g=>g.h([0,1,2,1,0],[9,1,4,1,9])},
- {n:'Suède',de:'de la',W:16,H:10,c:['#006AA7','#FECC00'],d:g=>g.bg(0)+g.r(5,0,2,10,1)+g.r(0,4,16,2,1)},
- {n:'Finlande',de:'de la',W:18,H:11,c:['#FFFFFF','#002F6C'],d:g=>g.bg(0)+g.r(5,0,3,11,1)+g.r(0,4,18,3,1)},
- {n:'Danemark',de:'du',W:37,H:28,c:['#C8102E','#FFFFFF'],d:g=>g.bg(0)+g.r(12,0,4,28,1)+g.r(0,12,37,4,1)},
- {n:'Norvège',de:'de la',W:22,H:16,c:['#BA0C2F','#FFFFFF','#00205B'],d:g=>g.bg(0)+g.r(6,0,4,16,1)+g.r(0,6,22,4,1)+g.r(7,0,2,16,2)+g.r(0,7,22,2,2)},
- {n:'Islande',de:"de l'",W:25,H:18,c:['#02529C','#FFFFFF','#DC1E35'],d:g=>g.bg(0)+g.r(7,0,4,18,1)+g.r(0,7,25,4,1)+g.r(8,0,2,18,2)+g.r(0,8,25,2,2)},
- {n:'Îles Féroé',de:'des',W:22,H:16,c:['#FFFFFF','#0065BD','#EF303E'],d:g=>g.bg(0)+g.r(6,0,4,16,1)+g.r(0,6,22,4,1)+g.r(7,0,2,16,2)+g.r(0,7,22,2,2)},
- {n:'Îles Åland',de:'des',W:26,H:17,c:['#0053A5','#FFCE00','#D21034'],d:g=>g.bg(0)+g.r(8,0,5,17,1)+g.r(0,6,26,5,1)+g.r(9.5,0,2,17,2)+g.r(0,7.5,26,2,2)},
- {n:'Groenland',de:'du',W:18,H:12,c:['#FFFFFF','#D00C33'],d:g=>g.r(0,0,18,6.03,0)+g.r(0,6,18,6,1)+g.path('M3,6 A4,4 0 0 1 11,6 Z',1)+g.path('M3,5.98 A4,4 0 0 0 11,5.98 Z',0)},
- {n:'Japon',de:'du',W:3,H:2,c:['#FFFFFF','#BC002D'],d:g=>g.bg(0)+g.c(1.5,1,.6,1)},
- {n:'Bangladesh',de:'du',W:10,H:6,c:['#006A4E','#F42A41'],d:g=>g.bg(0)+g.c(4.5,3,2,1)},
- {n:'Palaos',de:'des',W:8,H:5,c:['#4AADD6','#FFDE00'],d:g=>g.bg(0)+g.c(3.5,2.5,1.5,1)},
- {n:'Laos',de:'du',W:6,H:4,c:['#CE1126','#002868','#FFFFFF'],d:g=>g.h([0,1,0],[1,2,1])+g.c(3,2,.8,2)},
- {n:'Niger',de:'du',W:7,H:6,c:['#E05206','#FFFFFF','#0DB02B'],d:g=>g.h([0,1,2])+g.c(3.5,3,.75,0)},
- {n:'Suisse',de:'de la',W:32,H:32,c:['#DA291C','#FFFFFF'],d:g=>g.bg(0)+g.r(13,6,6,20,1)+g.r(6,13,20,6,1)},
- {n:'Tchéquie',de:'de la',W:6,H:4,c:['#FFFFFF','#D7141A','#11457E'],d:g=>g.h([0,1])+g.p([0,0,3,2,0,4],2)},
- {n:'Bénin',de:'du',W:15,H:10,c:['#008751','#FCD116','#E8112D'],d:g=>g.r(6,0,9,5.03,1)+g.r(6,5,9,5,2)+g.r(0,0,6.03,10,0)},
- {n:'Madagascar',de:'de',W:3,H:2,c:['#FFFFFF','#FC3D32','#007E3A'],d:g=>g.r(1,0,2,1.01,1)+g.r(1,1,2,1,2)+g.r(0,0,1.01,2,0)},
- {n:'Koweït',de:'du',W:12,H:6,c:['#007A3D','#FFFFFF','#CE1126','#000000'],d:g=>g.h([0,1,2])+g.p([0,0,3,2,3,4,0,6],3)},
- {n:'Émirats arabes unis',de:'des',W:12,H:6,c:['#00732F','#FFFFFF','#000000','#FF0000'],d:g=>g.h([0,1,2])+g.r(0,0,3,6,3)},
- {n:'Bahamas',de:'des',W:12,H:6,c:['#00778B','#FFC72C','#000000'],d:g=>g.h([0,1,0])+g.p([0,0,5.196,3,0,6],2)},
- {n:'Jamaïque',de:'de la',W:12,H:6,c:['#009B3A','#FED100','#000000'],d:g=>g.bg(0)+g.p([0,0,6,3,0,6],2)+g.p([12,0,6,3,12,6],2)+g.l(0,0,12,6,.9,1)+g.l(0,6,12,0,.9,1)},
- {n:'Tanzanie',de:'de la',W:72,H:48,c:['#1EB53A','#FCD116','#000000','#00A3DD'],d:g=>g.bg(0)+g.p([72,0,72,48,0,48],3)+g.l(0,48,72,0,15,1)+g.l(0,48,72,0,10,2)},
- {n:'Congo',de:'du',W:3,H:2,c:['#009543','#FBDE4A','#DC241F'],d:g=>g.p([0,0,2,0,0,2],0)+g.p([1.99,0,3,0,1.01,2,0,2,0,1.99],1)+g.p([3,0,3,2,1,2],2)},
- {n:'RD Congo',de:'de la',W:800,H:600,c:['#007FFF','#F7D618','#CE1021'],d:g=>g.bg(0)+g.l(0,600,800,0,150,1)+g.l(0,600,800,0,108,2)+g.s(136,132,100,1)},
- {n:'Seychelles',de:'des',W:12,H:6,c:['#003F87','#FCD856','#D62828','#FFFFFF','#007A3D'],d:g=>g.p([0,6,0,0,4,0],0)+g.p([0,6,4,0,8,0],1)+g.p([0,6,8,0,12,0,12,2],2)+g.p([0,6,12,2,12,4],3)+g.p([0,6,12,4,12,6],4)},
- {n:'Trinité-et-Tobago',de:'de',W:10,H:6,c:['#CE1126','#FFFFFF','#000000'],d:g=>g.bg(0)+g.l(0,0,10,6,2.2,1)+g.l(0,0,10,6,1.55,2)},
- {n:'Guyana',de:'du',W:10,H:6,c:['#009E49','#FFFFFF','#FCD116','#000000','#CE1126'],d:g=>g.bg(0)+g.p([0,0,10,3,0,6],1)+g.p([0,.35,9.4,3,0,5.65],2)+g.p([0,0,5,3,0,6],3)+g.p([0,.4,4.45,3,0,5.6],4)},
- {n:'Cuba',de:'de',W:20,H:10,c:['#002A8F','#FFFFFF','#CB1515'],d:g=>g.h([0,1,0,1,0])+g.p([0,0,8.66,5,0,10],2)+g.s(2.9,5.1,1.75,1)},
- {n:'Chili',de:'du',W:6,H:4,c:['#0039A6','#FFFFFF','#D52B1E'],d:g=>g.r(0,0,6,2.02,1)+g.r(0,2,6,2,2)+g.r(0,0,2,2,0)+g.s(1,1,.5,1)},
- {n:'Panama',de:'du',W:6,H:4,c:['#FFFFFF','#DA121A','#072357'],d:g=>g.bg(0)+g.r(3,0,3,2,1)+g.r(0,2,3,2,2)+g.s(1.5,1,.6,2)+g.s(4.5,3,.6,1)},
- {n:'Togo',de:'du',W:8.09,H:5,c:['#006A4E','#FFCE00','#D21034','#FFFFFF'],d:g=>g.h([0,1,0,1,0])+g.r(0,0,3,3,2)+g.s(1.5,1.55,1,3)},
- {n:'Viêt Nam',de:'du',W:3,H:2,c:['#DA251D','#FFFF00'],d:g=>g.bg(0)+g.s(1.5,1.04,.6,1)},
- {n:'Chine',de:'de la',W:30,H:20,c:['#EE1C25','#FFFF00'],d:g=>g.bg(0)+g.s(5,5,3,1)+[[10,2],[12,4],[12,7],[10,9]].map(([x,y])=>g.s(x,y,1,1,Math.atan2(5-y,5-x)*180/Math.PI+90)).join('')},
- {n:'Cameroun',de:'du',W:9,H:6,c:['#007A5E','#CE1126','#FCD116'],d:g=>g.v([0,1,2])+g.s(4.5,3.05,1,2)},
- {n:'Sénégal',de:'du',W:9,H:6,c:['#00853F','#FDEF42','#E31B23'],d:g=>g.v([0,1,2])+g.s(4.5,3.05,1,0)},
- {n:'Ghana',de:'du',W:9,H:6,c:['#CE1126','#FCD116','#006B3F','#000000'],d:g=>g.h([0,1,2])+g.s(4.5,3.05,1,3)},
- {n:'Burkina Faso',de:'du',W:9,H:6,c:['#EF2B2D','#009E49','#FCD116'],d:g=>g.h([0,1])+g.s(4.5,3.05,1,2)},
- {n:'Guinée-Bissau',de:'de la',W:12,H:6,c:['#CE1126','#FCD116','#009E49','#000000'],d:g=>g.r(4,0,8,3.02,1)+g.r(4,3,8,3,2)+g.r(0,0,4.02,6,0)+g.s(2,3.05,1,3)},
- {n:'Somalie',de:'de la',W:9,H:6,c:['#4189DD','#FFFFFF'],d:g=>g.bg(0)+g.s(4.5,3.1,1.35,1)},
- {n:'Maroc',de:'du',W:9,H:6,c:['#C1272D','#006233'],d:g=>g.bg(0)+g.pentagram(4.5,3.15,1.6,.2,1)},
- {n:'Turquie',de:'de la',W:30,H:20,c:['#E30A17','#FFFFFF'],d:g=>g.bg(0)+g.cr(10,10,5,11.25,10,4,1)+g.s(19.1,10,2.5,1,-90)},
- {n:'Tunisie',de:'de la',W:30,H:20,c:['#E70013','#FFFFFF'],d:g=>g.bg(0)+g.c(15,10,5,1)+g.cr(14.6,10,3.75,15.6,10,3,0)+g.s(16.4,10,2.1,0,-90)},
- {n:'Algérie',de:"de l'",W:30,H:20,c:['#006233','#FFFFFF','#D21034'],d:g=>g.v([0,1])+g.cr(15,10,5,16.25,10,4,2)+g.s(17.4,10,2.4,2,-90)},
- {n:'Libye',de:'de la',W:48,H:24,c:['#E70013','#000000','#239E46','#FFFFFF'],d:g=>g.h([0,1,2],[1,2,1])+g.cr(22.5,12,4.5,23.7,12,3.65,3)+g.s(26.4,12,2.1,3,-90)},
- {n:'Pakistan',de:'du',W:30,H:20,c:['#01411C','#FFFFFF'],d:g=>g.r(7.5,0,22.5,20,0)+g.r(0,0,7.53,20,1)+g.cr(19.5,10.5,6,21,9,5.3,1)+g.s(23.2,6.8,1.9,1,45)},
- {n:'Mauritanie',de:'de la',W:30,H:20,c:['#D01C1F','#00A95C','#FFD700'],d:g=>g.h([0,1,0],[3,14,3])+g.cr(15,9,6,15,6.8,5.6,2)+g.s(15,6.2,1.9,2)},
- {n:'Jordanie',de:'de la',W:12,H:6,c:['#000000','#FFFFFF','#007A3D','#CE1126'],d:g=>g.h([0,1,2])+g.p([0,0,6,3,0,6],3)+g.s(2,3,.55,1,0,7,.5)},
- {n:'Soudan',de:'du',W:12,H:6,c:['#D21034','#FFFFFF','#000000','#007229'],d:g=>g.h([0,1,2])+g.p([0,0,4,3,0,6],3)},
- {n:'Qatar',de:'du',W:28,H:11,c:['#8A1538','#FFFFFF'],d:g=>g.bg(0)+g.zig(7.5,10.5,9,1)},
- {n:'Bahreïn',de:'de',W:10,H:6,c:['#CE1126','#FFFFFF'],d:g=>g.bg(0)+g.zig(2.5,4,5,1)},
- {n:'Grèce',de:'de la',W:27,H:18,c:['#0D5EAF','#FFFFFF'],d:g=>g.h([0,1,0,1,0,1,0,1,0])+g.r(0,0,10,10,0)+g.r(4,0,2,10,1)+g.r(0,4,10,2,1)},
- {n:'Écosse',de:"de l'",W:10,H:6,c:['#005EB8','#FFFFFF'],d:g=>g.bg(0)+g.l(0,0,10,6,1.2,1)+g.l(0,6,10,0,1.2,1)},
- {n:'Angleterre',de:"de l'",W:10,H:6,c:['#FFFFFF','#CE1124'],d:g=>g.bg(0)+g.r(4.4,0,1.2,6,1)+g.r(0,2.4,10,1.2,1)},
- {n:'Inde',de:"de l'",W:9,H:6,c:['#FF9933','#FFFFFF','#138808','#000080'],minor:[3],d:g=>{let o=g.h([0,1,2])+g.ring(4.5,3,.7,.1,3)+g.c(4.5,3,.13,3);
-   for(let k=0;k<24;k++){const a=k*15*Math.PI/180;o+=`<line x1="4.5" y1="3" x2="${n4(4.5+.68*Math.cos(a))}" y2="${n4(3+.68*Math.sin(a))}" style="stroke:${g._f(3)};stroke-width:.04"/>`;}return o;}},
- {n:'Micronésie',de:'de la',W:19,H:10,c:['#75B2DD','#FFFFFF'],d:g=>g.bg(0)+g.s(9.5,2.4,1,1)+g.s(9.5,7.6,1,1)+g.s(6.9,5,1,1)+g.s(12.1,5,1,1)},
- {n:'Djibouti',de:'de',W:9,H:6,c:['#6AB2E7','#12AD2B','#FFFFFF','#D7141A'],d:g=>g.h([0,1])+g.p([0,0,5.2,3,0,6],2)+g.s(1.85,3.05,.95,3)},
- {n:'Myanmar',de:'du',W:18,H:12,c:['#FECB00','#34B233','#EA2839','#FFFFFF'],d:g=>g.h([0,1,2])+g.s(9,6.6,4.6,3)},
- {n:'Maldives',de:'des',W:24,H:16,c:['#D21034','#007E3A','#FFFFFF'],d:g=>g.bg(0)+g.r(4,4,16,8,1)+g.cr(12.6,8,2.8,13.7,8,2.5,2)},
- {n:'Azerbaïdjan',de:"de l'",W:12,H:6,c:['#00B5E2','#EF3340','#509E2F','#FFFFFF'],d:g=>g.h([0,1,2])+g.cr(5.75,3,.9,6,3,.75,3)+g.s(6.5,3,.4,3,0,8,.5)},
- {n:'Singapour',de:'de',W:54,H:36,c:['#EF3340','#FFFFFF'],d:g=>g.h([0,1])+g.cr(11.5,9,5.4,13.6,9,5,1)+[0,1,2,3,4].map(k=>{const a=(-90+k*72)*Math.PI/180;return g.s(15+2.7*Math.cos(a),9.4+2.7*Math.sin(a),1.2,1);}).join('')},
-];
-
-/* ---------- Couleurs ---------- */
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-function hsv2rgb(h, s, v) { const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
-  return [f(5), f(3), f(1)].map(x => Math.round(x * 255)); }
-function rgb2hsv([r, g, b]) { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
-  let h = 0; if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
-  return [h, mx ? d / mx : 0, mx]; }
-const toHex = rgb => '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
-const fromHex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-function lab(hex) {
-  const [r, g, b] = fromHex(hex).map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
-  const X = (r * .4124 + g * .3576 + b * .1805) / .95047, Y = r * .2126 + g * .7152 + b * .0722, Z = (r * .0193 + g * .1192 + b * .9505) / 1.08883;
-  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
-  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
-}
-function dE(h1, h2) { // CIEDE2000
-  const [L1, a1, b1] = lab(h1), [L2, a2, b2] = lab(h2), rad = Math.PI / 180, deg = 180 / Math.PI;
-  const Cb = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2, G = .5 * (1 - Math.sqrt(Cb ** 7 / (Cb ** 7 + 25 ** 7)));
-  const a1p = a1 * (1 + G), a2p = a2 * (1 + G), C1 = Math.hypot(a1p, b1), C2 = Math.hypot(a2p, b2);
-  const hh = (a, b) => { if (!a && !b) return 0; const x = Math.atan2(b, a) * deg; return x < 0 ? x + 360 : x; };
-  const hp1 = hh(a1p, b1), hp2 = hh(a2p, b2), dL = L2 - L1, dC = C2 - C1;
-  let dh = 0; if (C1 * C2) { dh = hp2 - hp1; if (dh > 180) dh -= 360; else if (dh < -180) dh += 360; }
-  const dH = 2 * Math.sqrt(C1 * C2) * Math.sin(dh * rad / 2), Lb = (L1 + L2) / 2, Cbp = (C1 + C2) / 2;
-  let hb = hp1 + hp2; if (C1 * C2) hb = Math.abs(hp1 - hp2) > 180 ? (hp1 + hp2 < 360 ? (hp1 + hp2 + 360) / 2 : (hp1 + hp2 - 360) / 2) : (hp1 + hp2) / 2;
-  const T = 1 - .17 * Math.cos((hb - 30) * rad) + .24 * Math.cos(2 * hb * rad) + .32 * Math.cos((3 * hb + 6) * rad) - .2 * Math.cos((4 * hb - 63) * rad);
-  const dTh = 30 * Math.exp(-(((hb - 275) / 25) ** 2)), Rc = 2 * Math.sqrt(Cbp ** 7 / (Cbp ** 7 + 25 ** 7));
-  const Sl = 1 + .015 * (Lb - 50) ** 2 / Math.sqrt(20 + (Lb - 50) ** 2), Sc = 1 + .045 * Cbp, Sh = 1 + .015 * Cbp * T, Rt = -Math.sin(2 * dTh * rad) * Rc;
-  return Math.sqrt((dL / Sl) ** 2 + (dC / Sc) ** 2 + (dH / Sh) ** 2 + Rt * (dC / Sc) * (dH / Sh));
-}
-const points = d => Math.round(100 / (1 + Math.pow(d / 10, 2)));
-function verdict(d) {
-  if (d < 2) return ['Parfait !', 'ok']; if (d < 5) return ['Excellent !', 'ok']; if (d < 10) return ['Très proche', 'ok'];
-  if (d < 20) return ['Pas mal', 'mid']; if (d < 35) return ['Bof…', 'mid']; return ['Raté !', 'ko'];
-}
-
-/* ---------- Rendu ---------- */
-function flagSVG(flag, f, w, h) {
-  const g = B(f, flag.W, flag.H); g._f = f;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${flag.W} ${flag.H}" width="${w}" height="${h}" preserveAspectRatio="none">${flag.d(g)}</svg>`;
-}
-const colorsWith = (flag, t, hex) => i => (i === t ? hex : flag.c[i]);
-function fitSize(flag, maxW, maxH) { const r = flag.W / flag.H; let w = maxW, h = maxW / r; if (h > maxH) { h = maxH; w = maxH * r; } return [Math.round(w), Math.round(h)]; }
-
-/* ---------- Fourmis (contour pointillé animé) ---------- */
-let ants = null, antsTimer = 0;
-function stopAnts() { clearInterval(antsTimer); antsTimer = 0; ants = null; }
-function startAnts(flagEl, flag, t, w, h) {
-  stopAnts();
-  const dpr = Math.min(2, window.devicePixelRatio || 1), pw = Math.round(w * dpr), ph = Math.round(h * dpr);
-  const svg = flagSVG(flag, i => (i === t ? '#fff' : '#000'), pw, ph);
-  const img = new Image(), token = {};
-  ants = token;
-  img.onload = () => {
-    if (ants !== token) return;
-    const off = document.createElement('canvas'); off.width = pw; off.height = ph;
-    const ox = off.getContext('2d'); ox.fillStyle = '#000'; ox.fillRect(0, 0, pw, ph); ox.drawImage(img, 0, 0, pw, ph);
-    const d = ox.getImageData(0, 0, pw, ph).data, N = pw * ph, m = new Uint8Array(N);
-    for (let p = 0; p < N; p++) m[p] = d[p * 4] > 127 ? 1 : 0;
-    // distance (en px) au bord, limitée à « th »
-    const th = Math.max(2, Math.round(2 * dpr)); let edge = new Uint8Array(N);
-    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) { const p = y * pw + x; if (!m[p]) continue;
-      if (x === 0 || y === 0 || x === pw - 1 || y === ph - 1 || !m[p - 1] || !m[p + 1] || !m[p - pw] || !m[p + pw]) edge[p] = 1; }
-    for (let k = 1; k < th; k++) { const nx = edge.slice();
-      for (let y = 1; y < ph - 1; y++) for (let x = 1; x < pw - 1; x++) { const p = y * pw + x;
-        if (m[p] && !edge[p] && (edge[p - 1] || edge[p + 1] || edge[p - pw] || edge[p + pw])) nx[p] = 1; }
-      edge = nx; }
-    const idx = []; for (let p = 0; p < N; p++) if (edge[p]) idx.push(p);
-    const cv = document.createElement('canvas'); cv.width = pw; cv.height = ph; cv.style.width = w + 'px'; cv.style.height = h + 'px';
-    flagEl.appendChild(cv);
-    const cx = cv.getContext('2d'), out = cx.createImageData(pw, ph), u32 = new Uint32Array(out.data.buffer);
-    const BLACK = 0xff1a1a1a, WHITE = 0xffffffff, dash = Math.round(4 * dpr);
-    let off2 = 0;
-    const draw = () => { for (const p of idx) { const x = p % pw, y = (p / pw) | 0; u32[p] = ((Math.floor((x + off2) / dash) + Math.floor((y + off2) / dash)) & 1) ? BLACK : WHITE; }
-      cx.putImageData(out, 0, 0); off2 = (off2 + Math.max(1, Math.round(dpr))) % (dash * 2); };
-    draw(); antsTimer = setInterval(() => { if (ants !== token) return; draw(); }, 70);
-  };
-  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-}
-
-/* ---------- Curseurs ---------- */
-function slider(el, get, set) {
-  const thumb = el.querySelector('.thumb');
-  const pos = () => { const v = get(); thumb.style.left = `calc(19px + ${v} * (100% - 38px))`; el.setAttribute('aria-valuenow', Math.round(v * 100)); };
-  const fromX = x => { const r = el.getBoundingClientRect(); set(clamp((x - r.left - 19) / (r.width - 38), 0, 1)); };
-  el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); el.focus(); fromX(e.clientX); e.preventDefault(); });
-  el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) fromX(e.clientX); });
-  el.addEventListener('keydown', e => { const st = e.shiftKey ? .05 : .005;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { set(clamp(get() + st, 0, 1)); e.preventDefault(); }
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { set(clamp(get() - st, 0, 1)); e.preventDefault(); } });
-  return pos;
-}
-
-/* ---------- État du jeu ---------- */
-const $ = id => document.getElementById(id);
-const S = { deck: [], round: 0, total: 0, results: [], flag: null, t: 0, truth: '', h: 0, s: 0, v: 0, phase: 'guess', size: [0, 0], showMine: false };
-const cur = () => toHex(hsv2rgb(S.h, S.s, S.v));
-
-const posH = slider($('sH'), () => S.h / 360, x => { S.h = x * 360; update(); });
-const posS = slider($('sS'), () => S.s, x => { S.s = x; update(); });
-const posV = slider($('sV'), () => S.v, x => { S.v = x; update(); });
-
-function update(skipHex) {
-  const hex = cur();
-  $('sS').style.background = `linear-gradient(to right, ${toHex(hsv2rgb(S.h, 0, S.v))}, ${toHex(hsv2rgb(S.h, 1, S.v))})`;
-  $('sV').style.background = `linear-gradient(to right, #000, ${toHex(hsv2rgb(S.h, S.s, 1))})`;
-  posH(); posS(); posV();
-  $('sw').style.background = hex;
-  if (!skipHex) $('hex').value = hex;
-  const svg = $('flag').querySelector('svg'); if (svg && S.phase === 'guess') svg.style.setProperty('--c' + S.t, hex);
-}
-
-function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
-
-function newGame() {
-  S.deck = shuffle(FLAGS.slice()).slice(0, ROUNDS); S.round = 0; S.total = 0; S.results = [];
-  $('end').style.display = 'none'; $('play').style.display = 'block';
-  $('roundsTxt').textContent = ROUNDS;
-  startRound();
-}
-
-function wrongColor(flag, t) {
-  const truth = flag.c[t];
-  for (let k = 0; k < 400; k++) {
-    const h = Math.random() * 360, s = .2 + Math.random() * .8, v = .25 + Math.random() * .75, hex = toHex(hsv2rgb(h, s, v));
-    if (dE(hex, truth) < 28) continue;
-    if (flag.c.some((c, i) => i !== t && dE(hex, c) < 14)) continue;
-    return [h, s, v];
-  }
-  return rgb2hsv(fromHex('#808080'));
-}
-
-function renderFlag() {
-  const el = $('flag'), stage = el.parentElement;
-  const maxW = Math.min(340, stage.clientWidth - 8), maxH = window.innerWidth < 420 ? 190 : 230;
-  const [w, h] = fitSize(S.flag, maxW, maxH); S.size = [w, h];
-  let f;
-  if (S.phase === 'guess') f = i => `var(--c${i})`;
-  else f = S.showMine ? colorsWith(S.flag, S.t, S.guess) : (i => S.flag.c[i]);
-  el.innerHTML = flagSVG(S.flag, f, w, h);
-  if (S.phase === 'guess') {
-    const svg = el.querySelector('svg'); S.flag.c.forEach((c, i) => svg.style.setProperty('--c' + i, i === S.t ? cur() : c));
-    startAnts(el, S.flag, S.t, w, h);
-  } else {
-    stopAnts();
-    el.insertAdjacentHTML('beforeend', `<span class="flag-tag">${S.showMine ? 'Ta version' : 'Vrai drapeau'}</span>`);
-  }
-}
-
-function startRound() {
-  const flag = S.deck[S.round]; S.flag = flag; S.phase = 'guess'; S.showMine = false;
-  const cand = flag.c.map((_, i) => i).filter(i => !(flag.minor || []).includes(i));
-  S.t = cand[Math.floor(Math.random() * cand.length)]; S.truth = flag.c[S.t];
-  [S.h, S.s, S.v] = wrongColor(flag, S.t);
-  const de = flag.de.endsWith("'") ? flag.de : flag.de + ' ';
-  $('prompt').innerHTML = `Une couleur est fausse dans le drapeau ${de}<b>${flag.n}</b> — corrige-la`;
-  $('roundTxt').textContent = S.round + 1; $('scoreTxt').textContent = S.total;
-  $('prog').style.width = (S.round / ROUNDS * 100) + '%';
-  $('guess').style.display = 'block'; $('result').style.display = 'none';
-  $('flag').classList.remove('clickable');
-  renderFlag(); update();
-}
-
-function submit() {
-  if (S.phase !== 'guess') return;
-  S.guess = cur(); const d = dE(S.guess, S.truth), pts = points(d);
-  S.total += pts; S.results.push({ flag: S.flag, t: S.t, guess: S.guess, truth: S.truth, d, pts });
-  S.phase = 'result';
-  const [txt, cls] = verdict(d);
-  $('vBig').textContent = txt; $('vBig').className = 'big ' + cls;
-  $('vPts').innerHTML = `+<b>${pts}</b> point${pts > 1 ? 's' : ''}`;
-  const lum = hex => lab(hex)[0] > 60 ? '#1d2433' : '#fff';
-  $('cYou').style.background = S.guess; $('cYou').style.color = lum(S.guess); $('cYou').querySelector('span').textContent = S.guess;
-  $('cTrue').style.background = S.truth; $('cTrue').style.color = lum(S.truth); $('cTrue').querySelector('span').textContent = S.truth;
-  $('mDe').textContent = `Écart ΔE₀₀ : ${d.toFixed(1)}`;
-  $('scoreTxt').textContent = S.total; $('prog').style.width = ((S.round + 1) / ROUNDS * 100) + '%';
-  $('next').textContent = S.round + 1 >= ROUNDS ? 'Voir le score final' : 'Manche suivante';
-  $('guess').style.display = 'none'; $('result').style.display = 'block';
-  $('flag').classList.add('clickable');
-  renderFlag(); $('next').focus();
-}
-
-function next() { S.round++; if (S.round >= ROUNDS) finish(); else startRound(); }
-
-function finish() {
-  stopAnts(); $('play').style.display = 'none'; $('end').style.display = 'block';
-  $('tot').textContent = S.total; $('totMax').textContent = ROUNDS * 100;
-  let best = null; try { best = +localStorage.getItem('bonneCouleurBest') || null; if (!best || S.total > best) localStorage.setItem('bonneCouleurBest', S.total); } catch (e) {}
-  $('best').textContent = best == null ? 'Premier record établi !' : (S.total > best ? `Nouveau record ! (ancien : ${best})` : `Record : ${best}`);
-  $('rows').innerHTML = S.results.map(r => {
-    const [w, h] = fitSize(r.flag, 48, 30);
-    return `<div class="row"><div class="mini">${flagSVG(r.flag, i => r.flag.c[i], w, h)}</div><div class="name">${r.flag.n}</div>
-      <div class="sw" style="background:${r.guess}" title="${r.guess}"></div><div class="sw" style="background:${r.truth}" title="${r.truth}"></div>
-      <div class="p ${verdict(r.d)[1]}">${r.pts}</div></div>`;
-  }).join('');
-}
-
-/* ---------- Événements ---------- */
-$('submit').addEventListener('click', submit);
-$('next').addEventListener('click', next);
-$('again').addEventListener('click', newGame);
-$('flag').addEventListener('click', () => { if (S.phase === 'result') { S.showMine = !S.showMine; renderFlag(); } });
-$('hex').addEventListener('input', e => {
-  let v = e.target.value.trim(); if (!v.startsWith('#')) v = '#' + v;
-  if (/^#[0-9a-fA-F]{6}$/.test(v)) { const [h, s, b] = rgb2hsv(fromHex(v)); if (s > 0 && b > 0) S.h = h; if (b > 0) S.s = s; S.v = b; update(true); }
-});
-$('hex').addEventListener('blur', () => update());
-document.addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  if (S.phase === 'guess' && $('play').style.display !== 'none') { e.preventDefault(); submit(); }
-});
-let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if ($('play').style.display !== 'none') renderFlag(); }, 150); });
-
-newGame();
-})();
-</script>
+<script src="flags.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

@@ -1,12 +1,34 @@
 services:
+  # Le jeu (site + API), hébergé en Europe
   - type: web
     runtime: node
     name: la-bonne-couleur
-    # Hébergé en Europe (Francfort, Allemagne)
     region: frankfurt
     plan: free
     # Aucune dépendance npm : rien à installer
     buildCommand: echo "Aucun build necessaire"
     startCommand: node server.js
-    healthCheckPath: /
+    healthCheckPath: /healthz
     autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Secret qui signe les parties (anti-triche), généré par Render
+      - key: GAME_SECRET
+        generateValue: true
+      # Connexion interne à la base du classement
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: la-bonne-couleur-classement
+          property: connectionString
+
+  # Base Key Value (compatible Redis) pour le classement, en Europe aussi
+  - type: keyvalue
+    name: la-bonne-couleur-classement
+    region: frankfurt
+    plan: free
+    # Garder les scores plutôt que d'en effacer quand la mémoire est pleine
+    maxmemoryPolicy: noeviction
+    # Aucun accès depuis Internet : seul le jeu (réseau privé Render) peut s'y connecter
+    ipAllowList: []
