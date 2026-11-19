@@ -298,29 +298,6 @@ function generate(seed, n = ROUNDS, opts = {}) {
   return out;
 }
 
-/** Indice de nuance (mode facile) : « un bleu foncé », « un rouge vif »… */
-function colorHint(hex) {
-  const [h, s, v] = rgb2hsv(fromHex(hex));
-  if (v < .12) return "un noir";
-  if (s < .12) return v > .9 ? "un blanc" : v > .55 ? "un gris clair" : "un gris foncé";
-  let name;
-  if (h < 12 || h >= 340) name = v < .55 ? "un bordeaux" : s < .55 ? "un rose" : "un rouge";
-  else if (h < 40) name = v < .6 ? "un brun" : "un orange";
-  else if (h < 66) name = v < .6 ? "un olive" : "un jaune";
-  else if (h < 165) name = "un vert";
-  else if (h < 195) name = "un turquoise";
-  else if (h < 255) name = "un bleu";
-  else if (h < 290) name = "un violet";
-  else name = "un rose";
-  let mod = "";
-  if (name === "un bordeaux" || name === "un brun" || name === "un olive") mod = "";
-  else if (v < .62) mod = " foncé";
-  else if (s < .5 && v > .75) mod = " clair";
-  else if (s < .55) mod = " un peu terne";
-  else if (s > .85 && v > .8) mod = " vif";
-  return name + mod;
-}
-
 /** Points d'une manche selon l'écart ΔE2000 (100 = parfait) */
 const points = d => Math.round(100 / (1 + Math.pow(d / 10, 2)));
 const isHex = h => typeof h === "string" && /^#[0-9A-Fa-f]{6}$/.test(h);
@@ -330,5 +307,5 @@ function flagSVG(flag, f, w, h) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${flag.W} ${flag.H}" width="${w}" height="${h}" preserveAspectRatio="none">${flag.d(g)}</svg>`;
 }
 
-return { FLAGS, BY_ID, ROUNDS, LEVELS, generate, pairs, colorHint, points, dE, lab, hsv2rgb, rgb2hsv, toHex, fromHex, isHex, flagSVG, rng };
+return { FLAGS, BY_ID, ROUNDS, LEVELS, generate, pairs, points, dE, lab, hsv2rgb, rgb2hsv, toHex, fromHex, isHex, flagSVG, rng };
 });

@@ -9,8 +9,8 @@ Sur chaque drapeau, une couleur est fausse. Retrouve la bonne avec les curseurs
   (sans aller jusqu'aux nuances les plus extrêmes), une seule tentative, classement quotidien,
   série de jours consécutifs, résultat à partager (grille d'émojis).
 - **Partie libre en 3 niveaux**, chacun avec son classement :
-  - *Facile* : drapeaux connus, couleurs franches, indice sur la nuance (« un bleu foncé »…) ;
-  - *Moyen* : mélange équilibré, sans indice ;
+  - *Facile* : drapeaux connus, couleurs franches ;
+  - *Moyen* : mélange équilibré de drapeaux connus et moins connus ;
   - *Difficile* : drapeaux rares et nuances subtiles, curseurs seulement (pas de code couleur).
 - **Difficulté de chaque manche** (1 à 5) calculée à partir de la notoriété du pays et de la nuance à retrouver
   (blanc et noir faciles, couleurs « classiques » de drapeaux plus faciles que les nuances rares).

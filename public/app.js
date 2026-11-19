@@ -38,8 +38,8 @@ async function api(path, opts) {
 }
 
 const LEVEL_TXT = {
-  facile: "Drapeaux connus et couleurs franches, avec un indice sur la nuance.",
-  moyen: "Un mélange équilibré de drapeaux, sans indice.",
+  facile: "Drapeaux connus et couleurs franches.",
+  moyen: "Un mélange équilibré de drapeaux connus et moins connus.",
   difficile: "Drapeaux rares et nuances subtiles. Curseurs seulement, sans code couleur.",
 };
 const LEVEL_NAME = { facile: "facile", moyen: "moyen", difficile: "difficile" };
@@ -254,8 +254,6 @@ function startRound() {
   const pips = `<span class="pips-wrap" title="Difficulté de la manche : ${lvl} sur 5"><span>Difficulté</span><span class="pips" aria-label="Difficulté ${lvl} sur 5">${[1, 2, 3, 4, 5].map(k => `<i class="${k <= lvl ? "on" : ""}"></i>`).join("")}</span></span>`;
   $("prompt").innerHTML = `<b>${esc(flag.n)}</b>${pips}Une couleur est fausse sur ce drapeau. Retrouve la bonne.`;
   $("flagHint").textContent = "La zone entourée de pointillés a la mauvaise couleur.";
-  $("hintLine").hidden = lv !== "facile";
-  if (lv === "facile") $("hintLine").innerHTML = `Indice : la bonne couleur est <b>${esc(F.colorHint(flag.c[r.t]))}</b>.`;
   $("hex").hidden = lv === "difficile";
   $("guessPanel").hidden = false; $("revealPanel").hidden = true; $("waitPanel").hidden = true;
   $("flag").classList.remove("clickable");
